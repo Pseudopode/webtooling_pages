@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grid Slicer — paste · crop · per-column rows · export</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root{
+    --bg:#0e1116; --panel:#161b22; --panel2:#1c232d; --line:#2a323d;
+    --ink:#e6edf3; --mut:#8b96a5; --acc:#d6a44c; --acc2:#5aa9e6;
+    --ok:#3fb950; --danger:#e5534b;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:var(--bg); color:var(--ink);
+    font:14px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    display:flex; flex-direction:column; height:100vh; overflow:hidden;
+  }
+  header{display:flex; align-items:center; gap:14px; padding:10px 16px;
+    background:linear-gradient(180deg,#171d26,#12161d); border-bottom:1px solid var(--line); flex:0 0 auto;}
+  header h1{font-size:15px; margin:0; letter-spacing:.4px; font-weight:700}
+  header h1 b{color:var(--acc)}
+  header .sub{color:var(--mut); font-size:12px}
+  header .spacer{flex:1}
+
+  .toolbar{display:flex; flex-wrap:wrap; align-items:flex-end; gap:14px;
+    padding:10px 16px; background:var(--panel); border-bottom:1px solid var(--line); flex:0 0 auto;}
+  .grp{display:flex; flex-direction:column; gap:4px}
+  .grp label{font-size:11px; color:var(--mut); text-transform:uppercase; letter-spacing:.5px}
+  .row{display:flex; gap:6px; align-items:center}
+  input[type=number], input[type=text], select{
+    background:var(--panel2); border:1px solid var(--line); color:var(--ink);
+    border-radius:6px; padding:7px 9px; font-size:13px; outline:none;}
+  input[type=number]{width:74px}
+  input[type=text]{width:140px}
+  input:focus, select:focus{border-color:var(--acc2)}
+  .stepper{display:flex; align-items:stretch; border:1px solid var(--line); border-radius:6px; overflow:hidden}
+  .stepper input{border:none; border-radius:0; width:50px; text-align:center}
+  .stepper button{background:var(--panel2); border:none; color:var(--ink); width:28px; cursor:pointer; font-size:16px}
+  .stepper button:hover{background:#2a3340}
+  .chk{display:flex; align-items:center; gap:7px; font-size:13px; cursor:pointer; user-select:none}
+  .chk input{width:16px;height:16px;accent-color:var(--acc)}
+
+  button.btn{background:var(--panel2); border:1px solid var(--line); color:var(--ink);
+    border-radius:6px; padding:8px 14px; font-size:13px; cursor:pointer; font-weight:600; transition:.12s;}
+  button.btn:hover:not(:disabled){background:#2a3340; border-color:#3a4554}
+  button.btn:disabled{opacity:.4; cursor:not-allowed}
+  button.primary{background:var(--acc); color:#1a1205; border-color:var(--acc)}
+  button.primary:hover:not(:disabled){background:#e6b860}
+  button.ghost{background:transparent}
+
+  .body{flex:1 1 auto; display:flex; min-height:0}
+  main{flex:1 1 auto; position:relative; overflow:hidden; background:
+    repeating-conic-gradient(#0c0f14 0% 25%, #11151c 0% 50%) 50% / 26px 26px;}
+  #stage{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; overflow:hidden}
+  #wrap{position:relative; line-height:0; box-shadow:0 8px 40px rgba(0,0,0,.5)}
+  #img{display:block; max-width:100%; max-height:100%; user-select:none; -webkit-user-drag:none}
+
+  #drop{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:14px; text-align:center; color:var(--mut); padding:40px;}
+  #drop.hide{display:none}
+  #drop .big{font-size:22px; color:var(--ink); font-weight:700}
+  .kbd{display:inline-block; background:var(--panel2); border:1px solid var(--line);
+    border-bottom-width:2px; border-radius:5px; padding:2px 8px; color:var(--ink); font-weight:600}
+  body.dragover main{outline:2px dashed var(--acc2); outline-offset:-8px}
+
+  #crop{position:absolute; border:1.5px solid var(--acc); box-shadow:0 0 0 9999px rgba(0,0,0,.45);
+    cursor:move; touch-action:none}
+  #crop.hide{display:none}
+  .gl{position:absolute; background:rgba(214,164,76,.6); pointer-events:none; z-index:3}
+  .gl.v{width:1px; top:0; bottom:0}
+  .gl.h{height:1px}
+  .colsep{position:absolute; top:0; bottom:0; width:1px; background:rgba(90,169,230,.55); pointer-events:none; z-index:3}
+  .div{position:absolute; z-index:6; touch-action:none}
+  .div.v{width:11px; margin-left:-5.5px; top:0; bottom:0; cursor:col-resize}
+  .div.h{height:11px; margin-top:-5.5px; cursor:row-resize}
+  .div:hover{background:rgba(90,169,230,.20)}
+  .handle{position:absolute; width:13px; height:13px; background:var(--acc); border:1.5px solid #1a1205;
+    border-radius:2px; z-index:7; touch-action:none}
+  .handle.nw{left:-7px;top:-7px;cursor:nwse-resize}.handle.ne{right:-7px;top:-7px;cursor:nesw-resize}
+  .handle.sw{left:-7px;bottom:-7px;cursor:nesw-resize}.handle.se{right:-7px;bottom:-7px;cursor:nwse-resize}
+  .handle.n{left:50%;top:-7px;transform:translateX(-50%);cursor:ns-resize}
+  .handle.s{left:50%;bottom:-7px;transform:translateX(-50%);cursor:ns-resize}
+  .handle.w{left:-7px;top:50%;transform:translateY(-50%);cursor:ew-resize}
+  .handle.e{right:-7px;top:50%;transform:translateY(-50%);cursor:ew-resize}
+  .clabel{position:absolute; font:10px/1 ui-monospace,monospace; color:rgba(255,255,255,.5);
+    pointer-events:none; padding:2px 3px; z-index:4}
+
+  /* side panel */
+  aside{flex:0 0 300px; max-width:300px; background:var(--panel); border-left:1px solid var(--line);
+    overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:10px}
+  aside h2{font-size:12px; text-transform:uppercase; letter-spacing:.6px; color:var(--mut); margin:2px 0}
+  .card{background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:10px}
+  .card .top{display:flex; align-items:center; gap:8px; justify-content:space-between}
+  .card .top .name{font-weight:700; font-size:13px}
+  .mini{background:#222b36; border:1px solid var(--line); color:var(--ink); border-radius:5px;
+    padding:4px 7px; font-size:11px; cursor:pointer}
+  .mini:hover{background:#2c3744}
+  .mini.del{color:var(--danger)}
+  .field{display:flex; align-items:center; gap:6px; font-size:12px; color:var(--mut)}
+  .field input[type=number]{width:62px; padding:5px 7px}
+  .rowlist{margin-top:8px; display:flex; flex-direction:column; gap:5px}
+  .rowitem{display:flex; align-items:center; gap:6px; font-size:12px}
+  .rowitem .idx{width:24px; color:var(--mut); text-align:right; font-variant-numeric:tabular-nums}
+  .rowitem input{width:70px; padding:5px 7px}
+  .rowitem .unit{color:var(--mut)}
+  .rowitem .x{margin-left:auto; cursor:pointer; color:var(--danger); border:none; background:none; font-size:15px; padding:0 4px}
+  .addrow{margin-top:6px}
+  .hint{font-size:11px; color:var(--mut); line-height:1.4}
+
+  footer{display:flex; align-items:center; gap:16px; padding:7px 16px;
+    background:var(--panel); border-top:1px solid var(--line); flex:0 0 auto; font-size:12px; color:var(--mut); min-height:34px;}
+  footer b{color:var(--ink); font-weight:600}
+  footer .ok{color:var(--ok)}
+  .pill{background:var(--panel2); border:1px solid var(--line); border-radius:99px; padding:3px 10px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1><b>Grid</b> Slicer</h1>
+  <span class="sub">Paste · frame · per-column rows of any height · export named PNGs.</span>
+  <span class="spacer"></span>
+  <span class="sub" id="dimReadout">No image</span>
+</header>
+
+<div class="toolbar">
+  <div class="grp">
+    <label>Columns</label>
+    <div class="stepper">
+      <button type="button" data-step="cols" data-d="-1">–</button>
+      <input type="number" id="cols" min="1" max="64" value="3">
+      <button type="button" data-step="cols" data-d="1">+</button>
+    </div>
+  </div>
+  <div class="grp">
+    <label>Rows (all cols)</label>
+    <div class="stepper">
+      <button type="button" data-step="rowsAll" data-d="-1">–</button>
+      <input type="number" id="rowsAll" min="1" max="200" value="9">
+      <button type="button" data-step="rowsAll" data-d="1">+</button>
+    </div>
+  </div>
+
+  <div class="grp">
+    <label>Filename prefix</label>
+    <input type="text" id="prefix" value="tile" spellcheck="false">
+  </div>
+  <div class="grp">
+    <label>Naming</label>
+    <select id="scheme">
+      <option value="colrow">prefix_c01_r01</option>
+      <option value="rowcol">prefix_r01_c01</option>
+      <option value="seq">prefix_001 (column-major)</option>
+    </select>
+  </div>
+  <div class="grp">
+    <label>Output</label>
+    <select id="mode">
+      <option value="rgb">Color (RGB)</option>
+      <option value="alpha">Alpha map · white, α=luminance</option>
+      <option value="alphaInv">Alpha map · white, α=inverted</option>
+    </select>
+  </div>
+  <div class="grp">
+    <label>&nbsp;</label>
+    <label class="chk" title="Shave 1px border off each tile"><input type="checkbox" id="trimEdges"> Inset 1px</label>
+  </div>
+
+  <span style="flex:1"></span>
+
+  <div class="grp">
+    <label>Session</label>
+    <div class="row">
+      <button class="btn ghost" id="saveBtn" disabled>Save</button>
+      <button class="btn ghost" id="loadSessBtn">Load</button>
+      <label class="chk" title="Embed the image in the .json so the session reloads fully"><input type="checkbox" id="embedImg" checked> img</label>
+    </div>
+  </div>
+
+  <div class="grp">
+    <label>&nbsp;</label>
+    <div class="row">
+      <button class="btn ghost" id="loadBtn">Load file…</button>
+      <button class="btn ghost" id="resetBtn" disabled>Reset frame</button>
+      <button class="btn primary" id="sliceBtn" disabled>Slice &amp; Export ZIP</button>
+    </div>
+  </div>
+  <input type="file" id="fileInput" accept="image/*" style="display:none">
+  <input type="file" id="jsonInput" accept="application/json,.json" style="display:none">
+</div>
+
+<div class="body">
+  <main>
+    <div id="stage">
+      <div id="wrap">
+        <img id="img" alt="">
+        <div id="crop" class="hide">
+          <div class="handle nw" data-h="nw"></div><div class="handle ne" data-h="ne"></div>
+          <div class="handle sw" data-h="sw"></div><div class="handle se" data-h="se"></div>
+          <div class="handle n" data-h="n"></div><div class="handle s" data-h="s"></div>
+          <div class="handle w" data-h="w"></div><div class="handle e" data-h="e"></div>
+        </div>
+      </div>
+    </div>
+    <div id="drop">
+      <div class="big">Paste an image</div>
+      <div>Press <span class="kbd">Ctrl/Cmd&nbsp;+&nbsp;V</span> · drag &amp; drop a file · or <a href="#" id="dropLoad" style="color:var(--acc2)">browse</a></div>
+    </div>
+  </main>
+
+  <aside id="panel">
+    <h2>Columns &amp; rows</h2>
+    <div class="hint">Each column has its own row list. Edit counts &amp; sizes here, or drag the
+      <span style="color:var(--acc2)">blue</span> column dividers and
+      <span style="color:var(--acc)">gold</span> row dividers directly on the image.</div>
+    <div id="cols-container"></div>
+  </aside>
+</div>
+
+<footer>
+  <span class="pill" id="gridInfo">—</span>
+  <span id="cropInfo">frame: —</span>
+  <span style="flex:1"></span>
+  <span id="status"></span>
+</footer>
+
+<script>
+(function(){
+  'use strict';
+
+  var img=document.getElementById('img'), wrap=document.getElementById('wrap'),
+      cropEl=document.getElementById('crop'), dropEl=document.getElementById('drop'),
+      stage=document.getElementById('stage'), panelC=document.getElementById('cols-container');
+
+  var sourceCanvas=null, natW=0, natH=0, dispScale=1;
+  var crop={x:0,y:0,w:0,h:0};                 // source px
+  var pendingLayout=null;                      // session layout awaiting an image
+  // layout (fractions, sums to 1):
+  var colSizes=[];                            // length nCols, widths
+  var rowSizes=[];                            // length nCols, each array of row heights
+
+  function $(id){return document.getElementById(id);}
+  function clamp(v,a,b){return v<a?a:(v>b?b:v);}
+  function pad(n,w){n=String(n);while(n.length<w)n='0'+n;return n;}
+  function setStatus(m,ok){var s=$('status');s.textContent=m||'';s.className=ok?'ok':'';}
+  function sum(a){var s=0;for(var i=0;i<a.length;i++)s+=a[i];return s;}
+  function equal(n){var a=[];for(var i=0;i<n;i++)a.push(1/n);return a;}
+  function normalize(a){var s=sum(a)||1;return a.map(function(v){return v/s;});}
+  function cumEdges(sizes){var e=[0],s=0;for(var i=0;i<sizes.length;i++){s+=sizes[i];e.push(s);}e[e.length-1]=1;return e;}
+  function nCols(){return colSizes.length;}
+
+  // proportional size setters --------------------------------------------------
+  function setSegment(sizes,idx,newSize){
+    newSize=clamp(newSize,0.004,0.996);
+    var others=sum(sizes)-sizes[idx], rem=1-newSize;
+    return sizes.map(function(v,i){
+      if(i===idx)return newSize;
+      return others>0 ? v/others*rem : rem/(sizes.length-1);
+    });
+  }
+  // edit a segment's size while keeping every segment BEFORE it fixed;
+  // only the segments AFTER it absorb the difference (top->bottom / left->right editing).
+  function setSegmentForward(sizes,idx,newSize){
+    var n=sizes.length, eps=0.004;
+    var before=0; for(var i=0;i<idx;i++) before+=sizes[i];
+    var afterCount=n-1-idx;
+    if(afterCount<=0){ // last segment: nothing after it -> it's just the remainder
+      var r=sizes.slice(); r[idx]=Math.max(eps,1-before); return r;
+    }
+    var maxSize=1-before-afterCount*eps;
+    newSize=clamp(newSize,eps,Math.max(eps,maxSize));
+    var afterSpace=1-before-newSize, afterOld=0;
+    for(var j=idx+1;j<n;j++) afterOld+=sizes[j];
+    var res=sizes.slice(); res[idx]=newSize;
+    for(var k=idx+1;k<n;k++) res[k]= afterOld>0 ? sizes[k]/afterOld*afterSpace : afterSpace/afterCount;
+    return res;
+  }
+  function moveDivider(sizes,k,deltaFrac){ // boundary between seg k and k+1
+    var pair=sizes[k]+sizes[k+1];
+    var a=clamp(sizes[k]+deltaFrac,0.004,pair-0.004);
+    var r=sizes.slice(); r[k]=a; r[k+1]=pair-a; return r;
+  }
+
+  // image loading --------------------------------------------------------------
+  function loadFromImageElement(im){
+    natW=im.naturalWidth; natH=im.naturalHeight;
+    if(!natW||!natH){setStatus('Could not read image.');return;}
+    var c=document.createElement('canvas');c.width=natW;c.height=natH;
+    c.getContext('2d').drawImage(im,0,0);sourceCanvas=c;
+    img.src=im.src; dropEl.classList.add('hide'); cropEl.classList.remove('hide');
+    if(pendingLayout){ applyPending(); }
+    else { crop={x:0,y:0,w:natW,h:natH}; initLayout(parseInt($('cols').value,10)||3, parseInt($('rowsAll').value,10)||9); }
+    $('sliceBtn').disabled=false; $('resetBtn').disabled=false; $('saveBtn').disabled=false;
+    $('dimReadout').textContent=natW+' × '+natH+' px';
+    requestAnimationFrame(function(){requestAnimationFrame(function(){syncScale();buildPanel();draw();});});
+    setStatus('Image loaded — set up columns/rows, then Slice.',true);
+  }
+  function loadFromBlob(blob){
+    var url=URL.createObjectURL(blob), im=new Image();
+    im.onload=function(){loadFromImageElement(im);};
+    im.onerror=function(){setStatus('Unsupported image data.');URL.revokeObjectURL(url);};
+    im.src=url;
+  }
+
+  // ---- session save / load (JSON) -------------------------------------------
+  function applyPending(){
+    var p=pendingLayout; pendingLayout=null;
+    colSizes=normalize(p.cols.map(Number));
+    rowSizes=p.rows.map(function(a){return normalize(a.map(Number));});
+    var cf=p.cropFrac||{x:0,y:0,w:1,h:1};
+    var cx=clamp(cf.x*natW,0,natW-1), cy=clamp(cf.y*natH,0,natH-1);
+    crop={x:cx,y:cy,w:clamp(cf.w*natW,1,natW-cx),h:clamp(cf.h*natH,1,natH-cy)};
+    $('cols').value=colSizes.length;
+  }
+
+  function saveSession(includeImage){
+    if(!sourceCanvas){setStatus('Load an image before saving a session.');return;}
+    var cf={x:crop.x/natW,y:crop.y/natH,w:crop.w/natW,h:crop.h/natH};
+    var obj={
+      app:'grid-slicer', version:1, savedAt:new Date().toISOString(),
+      image:{ w:natW, h:natH },
+      settings:{
+        prefix:$('prefix').value, scheme:$('scheme').value, mode:$('mode').value,
+        inset:$('trimEdges').checked, cols:nCols(), rowsAll:parseInt($('rowsAll').value,10)||9
+      },
+      crop:cf,
+      layout:{ cols:colSizes, rows:rowSizes }
+    };
+    if(includeImage) obj.image.dataURL=sourceCanvas.toDataURL('image/png');
+    var blob=new Blob([JSON.stringify(obj)],{type:'application/json'});
+    var url=URL.createObjectURL(blob), a=document.createElement('a');
+    var stamp=new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+    a.href=url; a.download=safePrefix()+'_session_'+stamp+'.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){URL.revokeObjectURL(url);},4000);
+    setStatus('Session saved'+(includeImage?' (with image)':' (layout only)')+'.',true);
+  }
+
+  function loadSessionObj(obj){
+    if(!obj||obj.app!=='grid-slicer'){setStatus('Not a Grid Slicer session file.');return;}
+    var s=obj.settings||{};
+    if(s.prefix!=null)$('prefix').value=s.prefix;
+    if(s.scheme)$('scheme').value=s.scheme;
+    if(s.mode)$('mode').value=s.mode;
+    if(s.inset!=null)$('trimEdges').checked=!!s.inset;
+    if(s.rowsAll)$('rowsAll').value=s.rowsAll;
+    var lay=obj.layout||{};
+    pendingLayout={
+      cols:(lay.cols&&lay.cols.length)?lay.cols.slice():equal(s.cols||3),
+      rows:(lay.rows&&lay.rows.length)?lay.rows.map(function(a){return a.slice();}):null,
+      cropFrac:obj.crop||{x:0,y:0,w:1,h:1}
+    };
+    if(!pendingLayout.rows) pendingLayout.rows=pendingLayout.cols.map(function(){return equal(s.rowsAll||9);});
+
+    if(obj.image&&obj.image.dataURL){
+      var im=new Image();
+      im.onload=function(){loadFromImageElement(im);setStatus('Session loaded (with image).',true);};
+      im.onerror=function(){setStatus('Session image could not be decoded.');};
+      im.src=obj.image.dataURL;
+    } else if(sourceCanvas){
+      applyPending(); buildPanel(); draw();
+      setStatus('Session layout applied to current image.',true);
+    } else {
+      setStatus('Layout loaded — paste or open the matching image to apply it.',true);
+    }
+  }
+
+  function readJsonFile(f){
+    var rd=new FileReader();
+    rd.onload=function(){ try{ loadSessionObj(JSON.parse(rd.result)); }catch(err){ setStatus('Invalid session JSON: '+err.message); } };
+    rd.readAsText(f);
+  }
+
+  // layout init / structural edits --------------------------------------------
+  function initLayout(nc,nr){
+    colSizes=equal(nc);
+    rowSizes=[]; for(var i=0;i<nc;i++) rowSizes.push(equal(nr));
+  }
+  function setColumnCount(nc){
+    nc=clamp(nc,1,64);
+    var oldRows=rowSizes, defR=clamp(parseInt($('rowsAll').value,10)||9,1,200);
+    colSizes=equal(nc);
+    var nr=[]; for(var i=0;i<nc;i++) nr.push(oldRows[i]?oldRows[i].slice():equal(defR));
+    rowSizes=nr;
+    $('cols').value=nc; buildPanel(); draw();
+  }
+  function setAllRows(n){
+    n=clamp(n,1,200);
+    for(var i=0;i<nCols();i++) rowSizes[i]=equal(n);
+    $('rowsAll').value=n; buildPanel(); draw();
+  }
+  function setColRows(ci,n){
+    n=clamp(n,1,200); rowSizes[ci]=equal(n); buildPanel(); draw();
+  }
+  function addRow(ci){ // split largest row in two
+    var r=rowSizes[ci], mi=0; for(var i=1;i<r.length;i++) if(r[i]>r[mi]) mi=i;
+    var h=r[mi]/2; r.splice(mi,1,h,h); buildPanel(); draw();
+  }
+  function removeRow(ci,ri){
+    var r=rowSizes[ci]; if(r.length<=1) return;
+    var add=r[ri]; r.splice(ri,1);
+    // redistribute removed share proportionally
+    var s=sum(r); r=r.map(function(v){return v/s;}); rowSizes[ci]=r;
+    buildPanel(); draw();
+  }
+  function delColumn(ci){
+    if(nCols()<=1) return;
+    colSizes.splice(ci,1); rowSizes.splice(ci,1);
+    colSizes=colSizes.map(function(v){return v/sum(colSizes);});
+    $('cols').value=nCols(); buildPanel(); draw();
+  }
+  function addColumn(){
+    var defR=clamp(parseInt($('rowsAll').value,10)||9,1,200);
+    var mi=0; for(var i=1;i<colSizes.length;i++) if(colSizes[i]>colSizes[mi]) mi=i;
+    var w=colSizes[mi]/2; colSizes.splice(mi,1,w,w);
+    rowSizes.splice(mi+1,0,equal(defR));
+    $('cols').value=nCols(); buildPanel(); draw();
+  }
+
+  // mapping --------------------------------------------------------------------
+  function syncScale(){var d=img.clientWidth||img.width; dispScale=d>0?d/natW:1;}
+
+  function totalTiles(){var t=0;for(var i=0;i<nCols();i++)t+=rowSizes[i].length;return t;}
+
+  // draw overlay ---------------------------------------------------------------
+  function draw(){
+    if(!sourceCanvas) return; syncScale();
+    var x=crop.x*dispScale,y=crop.y*dispScale,W=crop.w*dispScale,H=crop.h*dispScale;
+    cropEl.style.left=x+'px';cropEl.style.top=y+'px';cropEl.style.width=W+'px';cropEl.style.height=H+'px';
+
+    cropEl.querySelectorAll('.gl,.div,.colsep,.clabel').forEach(function(n){n.remove();});
+
+    var ce=cumEdges(colSizes);
+    // column separators + vertical dividers
+    for(var k=1;k<ce.length-1;k++){
+      var px=ce[k]*W;
+      var sep=document.createElement('div'); sep.className='colsep'; sep.style.left=px+'px'; cropEl.appendChild(sep);
+      var dv=document.createElement('div'); dv.className='div v'; dv.style.left=px+'px';
+      dv.dataset.axis='col'; dv.dataset.k=k; cropEl.appendChild(dv);
+    }
+    // per-column rows
+    for(var ci=0;ci<nCols();ci++){
+      var cx0=ce[ci]*W, cx1=ce[ci+1]*W, cw=cx1-cx0;
+      var re=cumEdges(rowSizes[ci]);
+      for(var r=1;r<re.length-1;r++){
+        var py=re[r]*H;
+        var gl=document.createElement('div'); gl.className='gl h';
+        gl.style.top=py+'px'; gl.style.left=cx0+'px'; gl.style.width=cw+'px'; cropEl.appendChild(gl);
+        var dh=document.createElement('div'); dh.className='div h';
+        dh.style.top=py+'px'; dh.style.left=cx0+'px'; dh.style.width=cw+'px';
+        dh.dataset.axis='row'; dh.dataset.col=ci; dh.dataset.k=r; cropEl.appendChild(dh);
+      }
+      // labels (only if room)
+      if(cw>34){
+        for(var rr=0;rr<rowSizes[ci].length;rr++){
+          var ch=(re[rr+1]-re[rr])*H;
+          if(ch<14) continue;
+          var lab=document.createElement('div'); lab.className='clabel';
+          lab.style.left=cx0+'px'; lab.style.top=(re[rr]*H)+'px';
+          lab.textContent=(ci+1)+'·'+(rr+1); cropEl.appendChild(lab);
+        }
+      }
+    }
+    updateReadouts();
+  }
+
+  function updateReadouts(){
+    if(!sourceCanvas){$('gridInfo').textContent='—';return;}
+    $('gridInfo').innerHTML='cols: <b>'+nCols()+'</b> · tiles: <b>'+totalTiles()+'</b>';
+    $('cropInfo').innerHTML='frame: <b>'+Math.round(crop.w)+' × '+Math.round(crop.h)+'</b> px @ ('+Math.round(crop.x)+', '+Math.round(crop.y)+')';
+  }
+
+  // side panel -----------------------------------------------------------------
+  function buildPanel(){
+    if(!sourceCanvas){panelC.innerHTML='';return;}
+    panelC.innerHTML='';
+    var ce=cumEdges(colSizes);
+    for(var ci=0;ci<nCols();ci++){
+      var colW=Math.round((ce[ci+1]-ce[ci])*crop.w);
+      var card=document.createElement('div'); card.className='card';
+      var rows=rowSizes[ci], re=cumEdges(rows);
+
+      var html='<div class="top"><span class="name">Column '+(ci+1)+'</span>'+
+        '<div class="row"><button class="mini" data-act="even" data-ci="'+ci+'">even</button>'+
+        '<button class="mini" data-act="copyall" data-ci="'+ci+'" title="Apply this column\u2019s row layout to all columns">→ all</button>'+
+        (nCols()>1?'<button class="mini del" data-act="delcol" data-ci="'+ci+'">✕</button>':'')+'</div></div>';
+
+      html+='<div class="field" style="margin-top:8px">width '+
+        '<input type="number" min="1" data-act="colw" data-ci="'+ci+'" value="'+colW+'"><span class="unit">px</span>'+
+        '<span style="flex:1"></span>rows '+
+        '<input type="number" min="1" max="200" data-act="rowcount" data-ci="'+ci+'" value="'+rows.length+'"></div>';
+
+      html+='<div class="rowlist">';
+      for(var r=0;r<rows.length;r++){
+        var hpx=Math.round((re[r+1]-re[r])*crop.h);
+        html+='<div class="rowitem"><span class="idx">'+(r+1)+'</span>'+
+          '<input type="number" min="1" data-act="rowh" data-ci="'+ci+'" data-ri="'+r+'" value="'+hpx+'">'+
+          '<span class="unit">px</span>'+
+          (rows.length>1?'<button class="x" data-act="delrow" data-ci="'+ci+'" data-ri="'+r+'" title="remove row">×</button>':'')+
+          '</div>';
+      }
+      html+='</div>';
+      html+='<button class="mini addrow" data-act="addrow" data-ci="'+ci+'">+ add row</button>';
+      card.innerHTML=html; panelC.appendChild(card);
+    }
+    var addColBtn=document.createElement('button');
+    addColBtn.className='btn ghost'; addColBtn.textContent='+ add column';
+    addColBtn.addEventListener('click',addColumn);
+    panelC.appendChild(addColBtn);
+  }
+
+  // panel events (delegated)
+  panelC.addEventListener('click',function(e){
+    var t=e.target; var act=t.dataset.act; if(!act)return;
+    var ci=parseInt(t.dataset.ci,10);
+    if(act==='even') setColRows(ci,rowSizes[ci].length);
+    else if(act==='copyall'){var src=rowSizes[ci].slice();for(var i=0;i<nCols();i++)rowSizes[i]=src.slice();buildPanel();draw();}
+    else if(act==='delcol') delColumn(ci);
+    else if(act==='addrow') addRow(ci);
+    else if(act==='delrow') removeRow(ci,parseInt(t.dataset.ri,10));
+  });
+  panelC.addEventListener('change',function(e){
+    var t=e.target; if(t.tagName!=='INPUT')return; var act=t.dataset.act;
+    var ci=parseInt(t.dataset.ci,10), val=parseFloat(t.value);
+    if(act==='colw'){
+      var f=clamp(val/crop.w,0.004,0.996); colSizes=setSegmentForward(colSizes,ci,f); buildPanel(); draw();
+    } else if(act==='rowcount'){
+      setColRows(ci,parseInt(val,10)||1);
+    } else if(act==='rowh'){
+      var ri=parseInt(t.dataset.ri,10), fr=clamp(val/crop.h,0.004,0.996);
+      rowSizes[ci]=setSegmentForward(rowSizes[ci],ri,fr); buildPanel(); draw();
+    }
+  });
+
+  // pointer interaction --------------------------------------------------------
+  var drag=null;
+  function startFrame(e,mode){if(!sourceCanvas)return;e.preventDefault();
+    drag={kind:'frame',mode:mode,sx:e.clientX,sy:e.clientY,start:{x:crop.x,y:crop.y,w:crop.w,h:crop.h}};
+    bindMove();}
+  function startDivider(e,axis,col,k){if(!sourceCanvas)return;e.preventDefault();e.stopPropagation();
+    var snap = axis==='col'? colSizes.slice() : rowSizes[col].slice();
+    drag={kind:'divider',axis:axis,col:col,k:k,sx:e.clientX,sy:e.clientY,snap:snap};
+    bindMove();}
+  function bindMove(){window.addEventListener('pointermove',onMove);window.addEventListener('pointerup',onUp);}
+
+  function onMove(e){
+    if(!drag)return; e.preventDefault();
+    if(drag.kind==='frame'){
+      var dx=(e.clientX-drag.sx)/dispScale, dy=(e.clientY-drag.sy)/dispScale, s=drag.start, m=drag.mode, mn=4;
+      var nx=s.x,ny=s.y,nw=s.w,nh=s.h;
+      if(m==='move'){nx=clamp(s.x+dx,0,natW-s.w);ny=clamp(s.y+dy,0,natH-s.h);}
+      else{var L=s.x,T=s.y,R=s.x+s.w,B=s.y+s.h;
+        if(m.indexOf('w')>=0)L=clamp(s.x+dx,0,R-mn);
+        if(m.indexOf('e')>=0)R=clamp(s.x+s.w+dx,L+mn,natW);
+        if(m.indexOf('n')>=0)T=clamp(s.y+dy,0,B-mn);
+        if(m.indexOf('s')>=0)B=clamp(s.y+s.h+dy,T+mn,natH);
+        nx=L;ny=T;nw=R-L;nh=B-T;}
+      crop={x:nx,y:ny,w:nw,h:nh}; draw();
+    } else { // divider
+      if(drag.axis==='col'){
+        var df=((e.clientX-drag.sx)/dispScale)/crop.w;
+        colSizes=moveDivider(drag.snap,drag.k-1,df);
+      } else {
+        var dfr=((e.clientY-drag.sy)/dispScale)/crop.h;
+        rowSizes[drag.col]=moveDivider(drag.snap,drag.k-1,dfr);
+      }
+      draw();
+    }
+  }
+  function onUp(){
+    var wasDiv = drag && drag.kind==='divider';
+    drag=null; window.removeEventListener('pointermove',onMove); window.removeEventListener('pointerup',onUp);
+    if(wasDiv) buildPanel(); // refresh px numbers after a drag
+    else if(sourceCanvas) buildPanel(); // frame moved/resized -> px recompute
+  }
+
+  cropEl.addEventListener('pointerdown',function(e){
+    var t=e.target;
+    if(t.classList.contains('handle')){ startFrame(e,t.dataset.h); return; }
+    if(t.classList.contains('div')){ startDivider(e,t.dataset.axis,t.dataset.col!==undefined?parseInt(t.dataset.col,10):null,parseInt(t.dataset.k,10)); return; }
+    startFrame(e,'move');
+  });
+
+  // slicing --------------------------------------------------------------------
+  function lumAlpha(ctx,w,h,inv){
+    var d=ctx.getImageData(0,0,w,h),a=d.data;
+    for(var i=0;i<a.length;i+=4){var L=0.2126*a[i]+0.7152*a[i+1]+0.0722*a[i+2];a[i]=255;a[i+1]=255;a[i+2]=255;a[i+3]=(inv?255-L:L)|0;}
+    ctx.putImageData(d,0,0);
+  }
+  function safePrefix(){return ($('prefix').value||'tile').trim().replace(/[^\w\-]+/g,'_')||'tile';}
+  function nameFor(ci,ri,seq,ctx){
+    var p=safePrefix(),sc=$('scheme').value;
+    if(sc==='seq') return p+'_'+pad(seq,ctx.seqW);
+    if(sc==='rowcol') return p+'_r'+pad(ri+1,ctx.rW)+'_c'+pad(ci+1,ctx.cW);
+    return p+'_c'+pad(ci+1,ctx.cW)+'_r'+pad(ri+1,ctx.rW);
+  }
+  function toZip(cv,zip,fn){return new Promise(function(res,rej){cv.toBlob(function(b){if(!b){rej(new Error('toBlob null'));return;}zip.file(fn,b);res();},'image/png');});}
+
+  function slice(){
+    if(!sourceCanvas)return;
+    if(typeof JSZip==='undefined'){setStatus('ZIP library failed to load — check your network settings.');return;}
+    var mode=$('mode').value, inset=$('trimEdges').checked?1:0, total=totalTiles();
+    var maxR=0;for(var i=0;i<nCols();i++)maxR=Math.max(maxR,rowSizes[i].length);
+    var ctx={cW:String(nCols()).length,rW:String(maxR).length,seqW:String(total).length};
+    setStatus('Slicing '+total+' tiles…'); $('sliceBtn').disabled=true;
+
+    var x0=clamp(Math.round(crop.x),0,natW), y0=clamp(Math.round(crop.y),0,natH);
+    var x1=clamp(Math.round(crop.x+crop.w),0,natW), y1=clamp(Math.round(crop.y+crop.h),0,natH);
+    var ce=cumEdges(colSizes);
+    var zip=new JSZip(), tasks=[], seq=1;
+
+    for(var ci=0;ci<nCols();ci++){
+      var sx0=Math.round(x0+(x1-x0)*ce[ci]), sx1=Math.round(x0+(x1-x0)*ce[ci+1]);
+      var re=cumEdges(rowSizes[ci]);
+      for(var ri=0;ri<rowSizes[ci].length;ri++){
+        var sy0=Math.round(y0+(y1-y0)*re[ri]), sy1=Math.round(y0+(y1-y0)*re[ri+1]);
+        var sx=sx0+inset, sy=sy0+inset, sw=(sx1-sx0)-inset*2, sh=(sy1-sy0)-inset*2;
+        if(sw<1)sw=1; if(sh<1)sh=1;
+        var cv=document.createElement('canvas');cv.width=sw;cv.height=sh;
+        var c=cv.getContext('2d'); c.drawImage(sourceCanvas,sx,sy,sw,sh,0,0,sw,sh);
+        if(mode==='alpha')lumAlpha(c,sw,sh,false); if(mode==='alphaInv')lumAlpha(c,sw,sh,true);
+        tasks.push(toZip(cv,zip,nameFor(ci,ri,seq,ctx)+'.png')); seq++;
+      }
+    }
+    Promise.all(tasks).then(function(){return zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}});})
+    .then(function(blob){
+      var stamp=new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+      var zn=safePrefix()+'_'+nCols()+'cols_'+total+'tiles_'+stamp+'.zip';
+      var url=URL.createObjectURL(blob),a=document.createElement('a');
+      a.href=url;a.download=zn;document.body.appendChild(a);a.click();a.remove();
+      setTimeout(function(){URL.revokeObjectURL(url);},4000);
+      setStatus('Exported '+total+' PNGs → '+zn,true); $('sliceBtn').disabled=false;
+    }).catch(function(err){console.error(err);setStatus('Export failed: '+err.message);$('sliceBtn').disabled=false;});
+  }
+
+  // wiring ---------------------------------------------------------------------
+  document.querySelectorAll('[data-step]').forEach(function(b){
+    b.addEventListener('click',function(){
+      var which=b.getAttribute('data-step'), inp=$(which),
+          v=(parseInt(inp.value,10)||1)+parseInt(b.getAttribute('data-d'),10);
+      if(which==='cols') setColumnCount(v); else setAllRows(v);
+    });
+  });
+  $('cols').addEventListener('change',function(){setColumnCount(parseInt(this.value,10)||1);});
+  $('rowsAll').addEventListener('change',function(){setAllRows(parseInt(this.value,10)||1);});
+  $('sliceBtn').addEventListener('click',slice);
+  $('resetBtn').addEventListener('click',function(){if(sourceCanvas){crop={x:0,y:0,w:natW,h:natH};buildPanel();draw();}});
+  $('loadBtn').addEventListener('click',function(){$('fileInput').click();});
+  $('saveBtn').addEventListener('click',function(){saveSession($('embedImg').checked);});
+  $('loadSessBtn').addEventListener('click',function(){$('jsonInput').click();});
+  $('jsonInput').addEventListener('change',function(e){var f=e.target.files&&e.target.files[0];e.target.value='';if(f)readJsonFile(f);});
+  $('dropLoad').addEventListener('click',function(e){e.preventDefault();$('fileInput').click();});
+  $('fileInput').addEventListener('change',function(e){var f=e.target.files&&e.target.files[0];if(f)loadFromBlob(f);e.target.value='';});
+
+  window.addEventListener('paste',function(e){
+    var it=(e.clipboardData||{}).items||[];
+    for(var i=0;i<it.length;i++) if(it[i].type&&it[i].type.indexOf('image')===0){var b=it[i].getAsFile();if(b){loadFromBlob(b);e.preventDefault();return;}}
+    setStatus('Clipboard had no image. Copy an image first, then paste.');
+  });
+  ['dragenter','dragover'].forEach(function(ev){window.addEventListener(ev,function(e){e.preventDefault();document.body.classList.add('dragover');});});
+  ['dragleave','drop'].forEach(function(ev){window.addEventListener(ev,function(e){e.preventDefault();if(ev==='drop'||e.relatedTarget===null)document.body.classList.remove('dragover');});});
+  window.addEventListener('drop',function(e){var dt=e.dataTransfer;if(!dt)return;var f=dt.files&&dt.files[0];if(!f)return;
+    if(f.type.indexOf('image')===0){loadFromBlob(f);return;}
+    if(f.type==='application/json'||/\.json$/i.test(f.name)){readJsonFile(f);}});
+
+  window.addEventListener('resize',function(){if(sourceCanvas){draw();}});
+  if(window.ResizeObserver)new ResizeObserver(function(){if(sourceCanvas){draw();}}).observe(stage);
+  img.addEventListener('load',function(){if(sourceCanvas)requestAnimationFrame(function(){buildPanel();draw();});});
+
+  updateReadouts();
+})();
+</script>
+</body>
+</html>
