@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Webtooling Pages</title>
+<style>
+  :root {
+    --bg: #f7f7f8; --panel: #ffffff; --ink: #1c1d22; --muted: #6b6f76;
+    --line: #e7e8ec; --accent: #3a5bd9; --shadow: 0 1px 2px rgba(20,22,30,.05), 0 8px 24px rgba(20,22,30,.05);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  header {
+    position: sticky; top: 0; z-index: 5; background: rgba(247,247,248,.85);
+    backdrop-filter: saturate(180%) blur(8px); border-bottom: 1px solid var(--line);
+  }
+  .bar { max-width: 1080px; margin: 0 auto; padding: 18px 24px;
+         display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .bar h1 { margin: 0; font-size: 19px; letter-spacing: -.01em; }
+  .bar .count { color: var(--muted); font-size: 13px; }
+  .search { margin-left: auto; flex: 1 1 220px; max-width: 340px; }
+  .search input {
+    width: 100%; padding: 9px 13px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--panel); font-size: 14px; color: var(--ink); outline: none;
+  }
+  .search input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(58,91,217,.12); }
+  main { max-width: 1080px; margin: 0 auto; padding: 28px 24px 64px; }
+  .section { margin-bottom: 36px; }
+  .section h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em;
+                color: var(--muted); margin: 0 0 14px; font-weight: 600; }
+  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+  .card {
+    display: block; text-decoration: none; color: inherit; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px;
+    box-shadow: var(--shadow); transition: transform .12s ease, border-color .12s ease;
+  }
+  .card:hover { transform: translateY(-2px); border-color: #d4d7df; }
+  .card-head { display: flex; align-items: baseline; gap: 10px; }
+  .card-head h3 { margin: 0; font-size: 15.5px; letter-spacing: -.01em; flex: 1; }
+  .badge { font-size: 11px; color: var(--accent); background: rgba(58,91,217,.1);
+           padding: 2px 8px; border-radius: 999px; font-weight: 600; }
+  .desc { margin: 8px 0 12px; color: var(--muted); font-size: 13.5px;
+          display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+  .empty { color: var(--muted); }
+  footer { max-width: 1080px; margin: 0 auto; padding: 0 24px 40px; color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+  <header>
+    <div class="bar">
+      <h1>Webtooling Pages</h1>
+      <span class="count">1 outil</span>
+      <div class="search"><input id="q" type="search" placeholder="Rechercher un outil…" autocomplete="off"></div>
+    </div>
+  </header>
+  <main>
+      <section class="section" data-cat="Image processing">
+        <h2>Image processing</h2>
+        <div class="grid">
+        <a class="card" href="tools/grid-slicer-paste-crop-per-column-rows-export/" data-search="grid slicer — paste · crop · per-column rows · export  image processing">
+          <div class="card-head">
+            <h3>Grid Slicer — paste · crop · per-column rows · export</h3>
+            <span class="badge">v1</span>
+          </div>
+          <p class="desc"></p>
+          <div class="meta"><span>Image processing</span><span>maj 22/06/2026</span></div>
+        </a>
+        </div>
+      </section>
+  </main>
+  <footer>Généré par ToolDeck · 2026</footer>
+<script>
+  const q = document.getElementById('q');
+  if (q) q.addEventListener('input', () => {
+    const term = q.value.trim().toLowerCase();
+    document.querySelectorAll('.card').forEach(c => {
+      c.style.display = (!term || (c.dataset.search || '').includes(term)) ? '' : 'none';
+    });
+    document.querySelectorAll('.section').forEach(s => {
+      const any = [...s.querySelectorAll('.card')].some(c => c.style.display !== 'none');
+      s.style.display = any ? '' : 'none';
+    });
+  });
+</script>
+</body>
+</html>
