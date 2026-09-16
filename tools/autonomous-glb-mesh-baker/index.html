@@ -1,0 +1,3764 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Autonomous GLB Mesh Map Baker · Scene Bake Viewer</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --panel: #181b23;
+      --panel-2: #202633;
+      --panel-3: #11141b;
+      --text: #e9edf5;
+      --muted: #9aa5b6;
+      --line: #303849;
+      --accent: #c69a42;
+      --accent-2: #f0c96e;
+      --good: #6dd89d;
+      --bad: #ff7171;
+      --shadow: rgba(0, 0, 0, 0.38);
+      --radius: 14px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      overflow: hidden;
+    }
+
+    #app {
+      width: 100vw;
+      height: 100vh;
+      display: grid;
+      grid-template-columns: 386px 1fr;
+      grid-template-rows: 1fr;
+    }
+
+    aside {
+      height: 100vh;
+      overflow-y: auto;
+      border-right: 1px solid var(--line);
+      background: linear-gradient(180deg, #191c25 0%, #11141b 100%);
+      box-shadow: 16px 0 40px var(--shadow);
+      z-index: 4;
+    }
+
+    .brand {
+      padding: 22px 22px 18px;
+      border-bottom: 1px solid var(--line);
+      background: radial-gradient(circle at top left, rgba(198,154,66,0.24), transparent 45%);
+    }
+    .brand h1 {
+      margin: 0;
+      font-size: 22px;
+      letter-spacing: 0.02em;
+      line-height: 1.1;
+    }
+    .brand p {
+      margin: 9px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .panel-section {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+    }
+    .section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 0 0 12px;
+      color: var(--accent-2);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-size: 11px;
+      font-weight: 800;
+    }
+    label {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin: 10px 0 6px;
+      user-select: none;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: end;
+    }
+    .row-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      align-items: end;
+    }
+    .inline {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 9px 0;
+      color: var(--text);
+      font-size: 13px;
+    }
+    .inline input { margin: 0; }
+
+    input[type="file"], select, input[type="number"], input[type="text"] {
+      width: 100%;
+      background: var(--panel-3);
+      border: 1px solid var(--line);
+      color: var(--text);
+      border-radius: 10px;
+      min-height: 38px;
+      padding: 8px 10px;
+      outline: none;
+    }
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+    select:focus, input:focus { border-color: var(--accent); }
+
+    .map-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 10px;
+    }
+    .map-grid .inline {
+      margin: 4px 0;
+      background: rgba(255,255,255,0.035);
+      padding: 8px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.04);
+    }
+    .map-subtitle {
+      grid-column: 1 / -1;
+      margin: 8px 0 1px;
+      color: var(--accent-2);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+      opacity: 0.84;
+    }
+    .map-subtitle:first-child { margin-top: 0; }
+    .map-kind {
+      margin-left: auto;
+      color: #7f8ca0;
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+    }
+    .map-actions {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .map-actions button { min-height: 32px; padding: 6px 8px; font-size: 11px; }
+
+    button {
+      border: 0;
+      background: var(--panel-2);
+      color: var(--text);
+      min-height: 38px;
+      padding: 9px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 700;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05);
+    }
+    button:hover { filter: brightness(1.08); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; filter: none; }
+    .primary {
+      background: linear-gradient(180deg, var(--accent-2), var(--accent));
+      color: #211707;
+      box-shadow: 0 10px 22px rgba(198,154,66,0.25);
+    }
+    .danger { background: #4b1f26; color: #ffd5d5; }
+    .wide { width: 100%; }
+    .button-row { display: flex; gap: 10px; margin-top: 12px; }
+    .button-row button { flex: 1; }
+
+    #main {
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+    }
+    #viewport {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: #eef0f2;
+    }
+    .topbar {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      right: 14px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      pointer-events: none;
+      z-index: 3;
+    }
+    .pill {
+      pointer-events: auto;
+      background: rgba(17,20,27,0.78);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 9px 13px;
+      box-shadow: 0 12px 32px var(--shadow);
+      font-size: 12px;
+    }
+    .previewbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      align-items: center;
+      min-width: min(790px, 80vw);
+      border-radius: 16px;
+      padding: 7px 9px;
+    }
+    .previewbar .preview-label {
+      flex: 0 0 auto;
+      color: var(--accent-2);
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 0 3px;
+    }
+    .previewbar select {
+      width: auto;
+      min-height: 32px;
+      padding: 4px 9px;
+      border-radius: 8px;
+      font-size: 11px;
+    }
+    #previewTargetSelect { flex: 1 1 210px; min-width: 150px; }
+    #previewMapSelect { flex: 1 1 185px; min-width: 145px; }
+    .previewbar button {
+      flex: 0 0 auto;
+      min-width: 32px;
+      min-height: 32px;
+      padding: 4px 9px;
+      border-radius: 8px;
+      font-size: 12px;
+    }
+    .previewbar .preview-step {
+      width: 32px;
+      padding: 0;
+      font-size: 20px;
+      line-height: 1;
+    }
+    .previewbar .preview-original { color: var(--accent-2); }
+    .preview-channel,
+    .preview-counter {
+      flex: 0 0 auto;
+      min-width: 42px;
+      color: #afbacb;
+      font-size: 9px;
+      font-weight: 900;
+      letter-spacing: 0.09em;
+      text-align: center;
+    }
+    .preview-channel {
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 999px;
+      padding: 4px 7px;
+      background: rgba(255,255,255,0.04);
+    }
+
+    .progress-box {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: min(520px, 80vw);
+      background: rgba(17,20,27,0.92);
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: var(--radius);
+      padding: 18px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.45);
+      z-index: 5;
+      display: none;
+    }
+    .progress-box.show { display: block; }
+    .progress-text { color: var(--text); font-size: 14px; margin-bottom: 12px; }
+    .progress-track {
+      height: 10px;
+      background: #0a0c11;
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    }
+
+    #results {
+      position: absolute;
+      right: 14px;
+      bottom: 14px;
+      width: min(520px, calc(100vw - 430px));
+      max-height: 48vh;
+      overflow: auto;
+      background: rgba(17,20,27,0.86);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: var(--radius);
+      box-shadow: 0 24px 70px rgba(0,0,0,0.4);
+      z-index: 3;
+      display: none;
+    }
+    #results.show { display: block; }
+    .results-head {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      background: rgba(17,20,27,0.96);
+    }
+    .results-head strong { font-size: 13px; color: var(--accent-2); letter-spacing: 0.06em; text-transform: uppercase; }
+    .results-body { padding: 12px 14px 14px; }
+    .target-title {
+      margin: 12px 0 8px;
+      font-size: 12px;
+      color: var(--muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .card {
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.04);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .card canvas {
+      display: block;
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      image-rendering: auto;
+      background: repeating-conic-gradient(#333 0% 25%, #292929 0% 50%) 50% / 20px 20px;
+    }
+    .card-meta {
+      padding: 8px;
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 6px;
+      align-items: center;
+      font-size: 12px;
+    }
+    .card-meta span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .mini { min-height: 28px; padding: 5px 8px; font-size: 11px; border-radius: 8px; }
+    .mask-layer { padding: 10px; margin: 10px 0; border: 1px solid var(--line); border-radius: 10px; background: #10141c; }
+    .mask-layer.dragging { opacity: .5; }
+    .mask-layer-head { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+    .mask-layer-head strong { flex: 1; font-size: 12px; }
+    .mask-layer-head input { width: auto; }
+    .mask-layer details { margin-top: 8px; }
+    .mask-layer summary { cursor: pointer; font-size: 12px; color: var(--muted); }
+    #maskLayers:empty::before { content: 'Add a map or image to start. Layers combine from top to bottom, starting with black.'; display: block; margin: 12px 0; font-size: 12px; color: var(--muted); }
+    #maskCanvas { width: 100%; max-height: 260px; object-fit: contain; background: repeating-conic-gradient(#1c2029 0% 25%, #282e38 0% 50%) 50% / 16px 16px; margin-top: 10px; }
+
+    .stat {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      padding: 5px 0;
+      border-bottom: 1px dashed rgba(255,255,255,0.07);
+    }
+    .stat:last-child { border-bottom: 0; }
+    .hint {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      background: rgba(198,154,66,0.08);
+      border: 1px solid rgba(198,154,66,0.22);
+      border-radius: 12px;
+      padding: 10px;
+      margin-top: 10px;
+    }
+    .warning { color: #ffd187; }
+    .ok { color: var(--good); }
+    .bad { color: var(--bad); }
+
+    @media (max-width: 980px) {
+      #app { grid-template-columns: 1fr; grid-template-rows: 47vh 53vh; }
+      aside { order: 2; height: 53vh; border-right: 0; border-top: 1px solid var(--line); }
+      #main { order: 1; }
+      #results { width: calc(100vw - 28px); max-height: 38vh; }
+      .topbar { flex-direction: column; align-items: stretch; }
+      .previewbar { min-width: 0; width: 100%; }
+      #previewTargetSelect, #previewMapSelect { min-width: 130px; }
+    }
+  </style>
+
+  <script async src="./vendor/es-module-shims.js"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three.module.js",
+        "three/addons/": "./vendor/three-addons/",
+        "three-mesh-bvh": "./vendor/index.module.js"
+      }
+    }
+  </script>
+  <script src="./vendor/jszip.min.js"></script>
+</head>
+<body>
+  <div id="app">
+    <aside>
+      <div class="brand">
+        <h1>GLB Mesh Map Baker</h1>
+        <p>Load a local GLB, bake grayscale and RGB utility maps in UV space, preview them on the model, and export PNGs or a ZIP.</p>
+      </div>
+
+      <div class="panel-section">
+        <div class="section-title">1 · Load Asset</div>
+        <input id="fileInput" type="file" accept=".glb,model/gltf-binary" />
+        <div id="loadHint" class="hint">Your GLB stays in the browser. UV0 is required for each submesh that you want to bake.</div>
+        <div id="assetStats" style="margin-top:10px;"></div>
+      </div>
+
+      <div class="panel-section">
+        <div class="section-title">2 · Target</div>
+        <label for="targetSelect">Bake target</label>
+        <select id="targetSelect" disabled>
+          <option>No GLB loaded</option>
+        </select>
+        <div class="hint">Groups/material slots are treated as submeshes when the GLB exposes them; otherwise each mesh is listed separately. All geometry contributes to ray occlusion.</div>
+      </div>
+
+      <div class="panel-section">
+        <div class="section-title">3 · Maps</div>
+        <div class="map-grid" id="mapChecks">
+          <div class="map-subtitle">Surface &amp; lighting</div>
+          <label class="inline" title="Cosine-weighted ray occlusion around the surface"><input type="checkbox" data-map="ao" checked /> Ambient Occlusion <span class="map-kind">GRAY</span></label>
+          <label class="inline" title="Short-range crevice occlusion"><input type="checkbox" data-map="cavity" checked /> Cavity <span class="map-kind">GRAY</span></label>
+          <label class="inline" title="Signed mean curvature: concave is dark, convex is bright"><input type="checkbox" data-map="curvature" checked /> Curvature <span class="map-kind">GRAY</span></label>
+          <label class="inline" title="Convex-only curvature mask"><input type="checkbox" data-map="convexity" /> Convexity <span class="map-kind">GRAY</span></label>
+          <label class="inline" title="Exposed convex edges suitable for wear masks"><input type="checkbox" data-map="edgewear" checked /> Edge Wear <span class="map-kind">GRAY</span></label>
+          <label class="inline" title="Average unoccluded hemisphere direction"><input type="checkbox" data-map="bentnormal" /> Bent Normal <span class="map-kind">RGB</span></label>
+
+          <div class="map-subtitle">Volume &amp; transmission</div>
+          <label class="inline"><input type="checkbox" data-map="thickness" checked /> Thickness <span class="map-kind">GRAY</span></label>
+          <label class="inline"><input type="checkbox" data-map="translucency" checked /> Translucency <span class="map-kind">GRAY</span></label>
+
+          <div class="map-subtitle">Spatial &amp; directional</div>
+          <label class="inline" title="Interpolated normal encoded from 0 to 1"><input type="checkbox" data-map="worldnormal" checked /> World Normal <span class="map-kind">RGB</span></label>
+          <label class="inline" title="Bounding-box-normalized XYZ position"><input type="checkbox" data-map="position" checked /> Position <span class="map-kind">RGB</span></label>
+          <label class="inline"><input type="checkbox" data-map="topbottom" checked /> Top / Bottom <span class="map-kind">GRAY</span></label>
+          <label class="inline" title="White on vertical surfaces, dark on horizontal surfaces"><input type="checkbox" data-map="slope" /> Slope / Verticality <span class="map-kind">GRAY</span></label>
+          <label class="inline"><input type="checkbox" data-map="axisdepth" checked /> Axis Depth <span class="map-kind">GRAY</span></label>
+
+          <div class="map-subtitle">Procedural environment masks</div>
+          <label class="inline"><input type="checkbox" data-map="leaking" checked /> Leaking / Dirt <span class="map-kind">GRAY</span></label>
+          <label class="inline" title="Upward-facing accumulation with cavity and noise breakup"><input type="checkbox" data-map="dust" /> Dust / Snow <span class="map-kind">GRAY</span></label>
+
+          <div class="map-subtitle">UV &amp; source diagnostics</div>
+          <label class="inline"><input type="checkbox" data-map="uvmask" /> UV Coverage <span class="map-kind">GRAY</span></label>
+          <label class="inline"><input type="checkbox" data-map="uvborder" /> UV Border <span class="map-kind">GRAY</span></label>
+          <label class="inline"><input type="checkbox" data-map="uvisland" /> UV Island ID <span class="map-kind">RGB</span></label>
+          <label class="inline"><input type="checkbox" data-map="uvcoord" /> UV Coordinates <span class="map-kind">RGB</span></label>
+          <label class="inline"><input type="checkbox" data-map="vertexcolor" /> Vertex Color <span class="map-kind">RGB</span></label>
+          <label class="inline"><input type="checkbox" data-map="vertexalpha" /> Vertex Alpha <span class="map-kind">GRAY</span></label>
+        </div>
+        <div class="map-actions">
+          <button id="coreMapsBtn" type="button">Core set</button>
+          <button id="allMapsBtn" type="button">Select all</button>
+          <button id="clearMapsBtn" type="button">Clear</button>
+        </div>
+        <div class="hint">RGB outputs include normals, position, UV data, island IDs, and vertex color. Bent Normal reuses the AO sample rays; UV diagnostics do not require ray tracing.</div>
+      </div>
+
+      <div class="panel-section">
+        <div class="section-title">4 · Quality</div>
+        <div class="row">
+          <div>
+            <label for="resolution">Texture size</label>
+            <select id="resolution">
+              <option value="128">128 × 128 · fast test</option>
+              <option value="256" selected>256 × 256 · preview</option>
+              <option value="512">512 × 512 · production</option>
+              <option value="1024">1024 × 1024 · high detail</option>
+              <option value="2048">2048 × 2048 · highest detail</option>
+            </select>
+          </div>
+          <div>
+            <label for="samples">Ray samples</label>
+            <input id="samples" type="number" min="4" max="128" step="4" value="24" />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="padding">UV island padding</label>
+            <input id="padding" type="number" min="0" max="32" step="1" value="4" />
+          </div>
+          <div>
+            <label for="biasPct">Ray bias · % bbox</label>
+            <input id="biasPct" type="number" min="0.001" max="2" step="0.005" value="0.035" />
+          </div>
+        </div>
+        <label for="uvOrigin">UV V convention</label>
+        <select id="uvOrigin">
+          <option value="gltf" selected>glTF / PNG top-left · V=0 at top</option>
+          <option value="opengl">OpenGL / DCC bottom-left · V=0 at bottom</option>
+        </select>
+        <label for="bakeBackend">Bake engine</label>
+        <select id="bakeBackend">
+          <option value="auto">Auto · GPU with worker fallback</option>
+          <option value="gpu">WebGL2 GPU</option>
+          <option value="worker">CPU workers</option>
+        </select>
+        <label for="occlusionSource">Occlusion source</label>
+        <select id="occlusionSource">
+          <option value="all">Self + other objects</option>
+          <option value="self">Self only · all slots of target mesh</option>
+          <option value="other">Other objects only</option>
+        </select>
+        <div class="hint">Applies to AO, cavity, bent normals, dirt and wear. Thickness keeps using the full scene.</div>
+        <div id="engineStatus" class="hint">GPU baking keeps surface and ray data cached. Strength changes reuse rays; geometry, resolution and ray settings invalidate the relevant cache. Large maps require more memory.</div>
+      </div>
+
+      <div class="panel-section">
+        <div class="section-title">Map Settings</div>
+        <div class="row">
+          <div>
+            <label for="aoPct">AO radius · % bbox</label>
+            <input id="aoPct" type="number" min="0.1" max="200" step="0.1" value="12" />
+          </div>
+          <div>
+            <label for="aoStrength">AO strength</label>
+            <input id="aoStrength" type="number" min="0.1" max="5" step="0.1" value="1.35" />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="cavityPct">Cavity radius · % bbox</label>
+            <input id="cavityPct" type="number" min="0.01" max="50" step="0.05" value="2.0" />
+          </div>
+          <div>
+            <label for="cavityStrength">Cavity strength</label>
+            <input id="cavityStrength" type="number" min="0.1" max="8" step="0.1" value="2.2" />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="bentPct">Bent normal radius · % bbox</label>
+            <input id="bentPct" type="number" min="0.1" max="200" step="0.1" value="18" />
+          </div>
+          <div>
+            <label for="curvatureStrength">Curvature strength</label>
+            <input id="curvatureStrength" type="number" min="0.05" max="8" step="0.05" value="1.0" />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="edgeWearStrength">Edge wear strength</label>
+            <input id="edgeWearStrength" type="number" min="0.05" max="12" step="0.05" value="2.2" />
+          </div>
+          <div>
+            <label for="dustStrength">Dust / snow amount</label>
+            <input id="dustStrength" type="number" min="0" max="8" step="0.05" value="1.35" />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="dustAngle">Dust max slope · degrees</label>
+            <input id="dustAngle" type="number" min="1" max="89" step="1" value="55" />
+          </div>
+          <div>
+            <label for="uvBorderWidth">UV border width · px</label>
+            <input id="uvBorderWidth" type="number" min="1" max="32" step="1" value="2" />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="thicknessPct">Thickness max · % bbox</label>
+            <input id="thicknessPct" type="number" min="0.1" max="300" step="0.1" value="28" />
+          </div>
+          <div>
+            <label for="transPower">Translucency power</label>
+            <input id="transPower" type="number" min="0.2" max="8" step="0.1" value="1.2" />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="upAxis">Top / Bottom up axis</label>
+            <select id="upAxis">
+              <option value="+Y" selected>+Y up</option>
+              <option value="-Y">-Y up</option>
+              <option value="+Z">+Z up</option>
+              <option value="-Z">-Z up</option>
+              <option value="+X">+X up</option>
+              <option value="-X">-X up</option>
+            </select>
+          </div>
+          <div>
+            <label for="depthAxis">Axis depth</label>
+            <select id="depthAxis">
+              <option value="X">X depth</option>
+              <option value="Y" selected>Y depth</option>
+              <option value="Z">Z depth</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="gravityAxis">Leaking gravity</label>
+            <select id="gravityAxis">
+              <option value="-Y" selected>-Y gravity</option>
+              <option value="+Y">+Y gravity</option>
+              <option value="-Z">-Z gravity</option>
+              <option value="+Z">+Z gravity</option>
+              <option value="-X">-X gravity</option>
+              <option value="+X">+X gravity</option>
+            </select>
+          </div>
+          <div>
+            <label for="leakPct">Leak reach · % bbox</label>
+            <input id="leakPct" type="number" min="0.1" max="300" step="0.1" value="35" />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="dripFreq">Drip breakup</label>
+            <input id="dripFreq" type="number" min="0.1" max="100" step="0.1" value="9" />
+          </div>
+          <div>
+            <label for="leakStrength">Leak strength</label>
+            <input id="leakStrength" type="number" min="0.1" max="8" step="0.1" value="1.6" />
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <div class="section-title">5 · Bake</div>
+        <button id="bakeBtn" class="primary wide" disabled>Bake selected maps</button>
+        <div class="button-row">
+          <button id="cancelBtn" class="danger" disabled>Cancel</button>
+          <button id="downloadAllBtn" disabled>Download ZIP</button>
+        </div>
+        <div class="button-row">
+          <button id="restoreBtn" disabled>Original Material</button>
+          <button id="fitBtn" disabled>Frame Asset</button>
+        </div>
+      </div>
+      <div class="panel-section" id="maskEditor">
+        <div class="section-title">6 · Layer mask composer</div>
+        <label for="maskTarget">Mask target</label><select id="maskTarget" disabled></select>
+        <div class="row">
+          <select id="maskSource" aria-label="New layer source"></select>
+          <button id="maskAdd" disabled>Add layer</button>
+        </div>
+        <div id="maskLayers"></div>
+        <div class="row">
+          <div><label for="maskThreshold">Global threshold</label><input id="maskThreshold" type="number" min="0" max="0.99" step="0.01" value="0"></div>
+          <div><label for="maskSmooth">Global smooth · passes</label><input id="maskSmooth" type="number" min="0" max="8" step="1" value="0"></div>
+        </div>
+        <label class="inline"><input id="maskLive" type="checkbox" checked> Live preview · up to 256²</label>
+        <div class="button-row"><button id="maskApply" disabled>Apply / Preview</button><button id="maskCancel" disabled>Cancel mask</button></div>
+        <canvas id="maskCanvas" width="256" height="256" hidden></canvas>
+        <div id="maskStatus" class="hint" role="status">Adjust layers here; individual baked maps remain available above.</div>
+        <div class="button-row"><button id="maskPNG" disabled>Composite PNG</button><button id="maskJSON" disabled>Vertex weights JSON</button></div>
+        <div class="hint">Exports use the selected bake resolution. Smoothing stays inside UV islands. Vertices sharing UV coordinates share mask values.</div>
+      </div>
+    </aside>
+
+    <main id="main">
+      <canvas id="viewport"></canvas>
+      <div class="topbar">
+        <div class="pill" id="statusPill">Load a GLB to begin.</div>
+        <div class="pill previewbar" aria-label="Scene map viewer">
+          <span class="preview-label">Scene maps</span>
+          <select id="previewTargetSelect" disabled title="Choose a submesh or preview original and baked maps across the model">
+            <option value="">No baked targets</option>
+          </select>
+          <button id="previewPrevBtn" class="preview-step" type="button" disabled title="Previous bake ([)">‹</button>
+          <select id="previewMapSelect" disabled title="Choose the baked map shown directly on the 3D model">
+            <option value="">Original material</option>
+          </select>
+          <button id="previewNextBtn" class="preview-step" type="button" disabled title="Next bake (])">›</button>
+          <button id="previewOriginalBtn" class="preview-original" type="button" disabled title="Restore original materials (O)">Original</button>
+          <span id="previewChannel" class="preview-channel" title="Selected map channel type">—</span>
+          <span id="previewCounter" class="preview-counter" title="Use [ and ] to cycle maps">0 / 0</span>
+        </div>
+      </div>
+
+      <div id="progressBox" class="progress-box">
+        <div id="progressText" class="progress-text">Preparing bake…</div>
+        <div class="progress-track"><div id="progressFill" class="progress-fill"></div></div>
+      </div>
+
+      <div id="results">
+        <div class="results-head">
+          <strong>Baked Outputs</strong>
+          <button id="hideResults" class="mini">Hide</button>
+        </div>
+        <div id="resultsBody" class="results-body"></div>
+      </div>
+    </main>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+    import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree, MeshBVH, MeshBVHUniformStruct, shaderStructs, shaderIntersectFunction } from 'three-mesh-bvh';
+
+    THREE.Mesh.prototype.raycast = acceleratedRaycast;
+    THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+    THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
+
+    const MAPS = [
+      { key: 'ao', label: 'Ambient Occlusion', suffix: 'AO', channels: 'gray' },
+      { key: 'cavity', label: 'Cavity', suffix: 'Cavity', channels: 'gray' },
+      { key: 'curvature', label: 'Curvature', suffix: 'Curvature', channels: 'gray' },
+      { key: 'convexity', label: 'Convexity', suffix: 'Convexity', channels: 'gray' },
+      { key: 'edgewear', label: 'Edge Wear', suffix: 'EdgeWear', channels: 'gray' },
+      { key: 'bentnormal', label: 'Bent Normal', suffix: 'BentNormal', channels: 'rgb' },
+      { key: 'thickness', label: 'Thickness', suffix: 'Thickness', channels: 'gray' },
+      { key: 'translucency', label: 'Translucency', suffix: 'Translucency', channels: 'gray' },
+      { key: 'worldnormal', label: 'World Normal', suffix: 'WorldNormal', channels: 'rgb' },
+      { key: 'position', label: 'Position', suffix: 'Position', channels: 'rgb' },
+      { key: 'topbottom', label: 'Top / Bottom', suffix: 'TopBottom', channels: 'gray' },
+      { key: 'slope', label: 'Slope / Verticality', suffix: 'Slope', channels: 'gray' },
+      { key: 'axisdepth', label: 'Axis Depth', suffix: 'AxisDepth', channels: 'gray' },
+      { key: 'leaking', label: 'Leaking / Dirt', suffix: 'LeakingDirt', channels: 'gray' },
+      { key: 'dust', label: 'Dust / Snow', suffix: 'DustSnow', channels: 'gray' },
+      { key: 'uvmask', label: 'UV Coverage', suffix: 'UVCoverage', channels: 'gray' },
+      { key: 'uvborder', label: 'UV Border', suffix: 'UVBorder', channels: 'gray' },
+      { key: 'uvisland', label: 'UV Island ID', suffix: 'UVIslandID', channels: 'rgb' },
+      { key: 'uvcoord', label: 'UV Coordinates', suffix: 'UVCoordinates', channels: 'rgb' },
+      { key: 'vertexcolor', label: 'Vertex Color', suffix: 'VertexColor', channels: 'rgb' },
+      { key: 'vertexalpha', label: 'Vertex Alpha', suffix: 'VertexAlpha', channels: 'gray' }
+    ];
+
+    const ORIGINAL_MAPS = [
+      { key: 'original:basecolor', label: 'Original · Base Color', property: 'map', channels: 'rgb', factor: 'color' },
+      { key: 'original:metallic', label: 'Original · Metallic', property: 'metalnessMap', channels: 'b', factor: 'metalness' },
+      { key: 'original:roughness', label: 'Original · Roughness', property: 'roughnessMap', channels: 'g', factor: 'roughness' },
+      { key: 'original:normal', label: 'Original · Normal (tangent space)', property: 'normalMap', channels: 'rgb' },
+      { key: 'original:ao', label: 'Original · Ambient Occlusion', property: 'aoMap', channels: 'r' },
+      { key: 'original:emissive', label: 'Original · Emissive', property: 'emissiveMap', channels: 'rgb', factor: 'emissive' },
+      { key: 'original:opacity', label: 'Original · Opacity', property: 'map', channels: 'a', factor: 'opacity' },
+      { key: 'original:alpha', label: 'Original · Alpha Map', property: 'alphaMap', channels: 'g' },
+      { key: 'original:bump', label: 'Original · Bump', property: 'bumpMap', channels: 'r' },
+      { key: 'original:displacement', label: 'Original · Displacement', property: 'displacementMap', channels: 'r' },
+      { key: 'original:light', label: 'Original · Light Map', property: 'lightMap', channels: 'rgb' },
+      { key: 'original:clearcoat', label: 'Original · Clearcoat', property: 'clearcoatMap', channels: 'r' },
+      { key: 'original:clearcoatroughness', label: 'Original · Clearcoat Roughness', property: 'clearcoatRoughnessMap', channels: 'g' },
+      { key: 'original:clearcoatnormal', label: 'Original · Clearcoat Normal', property: 'clearcoatNormalMap', channels: 'rgb' },
+      { key: 'original:transmission', label: 'Original · Transmission', property: 'transmissionMap', channels: 'r' },
+      { key: 'original:thickness', label: 'Original · Volume Thickness', property: 'thicknessMap', channels: 'g' },
+      { key: 'original:sheencolor', label: 'Original · Sheen Color', property: 'sheenColorMap', channels: 'rgb' },
+      { key: 'original:sheenroughness', label: 'Original · Sheen Roughness', property: 'sheenRoughnessMap', channels: 'a' },
+      { key: 'original:specular', label: 'Original · Specular Intensity', property: 'specularIntensityMap', channels: 'a' },
+      { key: 'original:specularcolor', label: 'Original · Specular Color', property: 'specularColorMap', channels: 'rgb' },
+      { key: 'original:iridescence', label: 'Original · Iridescence', property: 'iridescenceMap', channels: 'r' },
+      { key: 'original:iridescencethickness', label: 'Original · Iridescence Thickness', property: 'iridescenceThicknessMap', channels: 'g' },
+      { key: 'original:anisotropy', label: 'Original · Anisotropy', property: 'anisotropyMap', channels: 'rgb' }
+    ];
+
+    const CORE_MAPS = new Set([
+      'ao', 'cavity', 'curvature', 'edgewear', 'thickness', 'translucency',
+      'worldnormal', 'position', 'topbottom', 'axisdepth', 'leaking'
+    ]);
+
+    const els = {
+      fileInput: document.getElementById('fileInput'),
+      loadHint: document.getElementById('loadHint'),
+      assetStats: document.getElementById('assetStats'),
+      targetSelect: document.getElementById('targetSelect'),
+      mapChecks: document.getElementById('mapChecks'),
+      coreMapsBtn: document.getElementById('coreMapsBtn'),
+      allMapsBtn: document.getElementById('allMapsBtn'),
+      clearMapsBtn: document.getElementById('clearMapsBtn'),
+      resolution: document.getElementById('resolution'),
+      samples: document.getElementById('samples'),
+      padding: document.getElementById('padding'),
+      uvOrigin: document.getElementById('uvOrigin'),
+      biasPct: document.getElementById('biasPct'),
+      aoPct: document.getElementById('aoPct'),
+      aoStrength: document.getElementById('aoStrength'),
+      cavityPct: document.getElementById('cavityPct'),
+      cavityStrength: document.getElementById('cavityStrength'),
+      bentPct: document.getElementById('bentPct'),
+      curvatureStrength: document.getElementById('curvatureStrength'),
+      edgeWearStrength: document.getElementById('edgeWearStrength'),
+      dustStrength: document.getElementById('dustStrength'),
+      dustAngle: document.getElementById('dustAngle'),
+      uvBorderWidth: document.getElementById('uvBorderWidth'),
+      thicknessPct: document.getElementById('thicknessPct'),
+      transPower: document.getElementById('transPower'),
+      upAxis: document.getElementById('upAxis'),
+      depthAxis: document.getElementById('depthAxis'),
+      gravityAxis: document.getElementById('gravityAxis'),
+      leakPct: document.getElementById('leakPct'),
+      dripFreq: document.getElementById('dripFreq'),
+      leakStrength: document.getElementById('leakStrength'),
+      bakeBtn: document.getElementById('bakeBtn'),
+      cancelBtn: document.getElementById('cancelBtn'),
+      downloadAllBtn: document.getElementById('downloadAllBtn'),
+      restoreBtn: document.getElementById('restoreBtn'),
+      fitBtn: document.getElementById('fitBtn'),
+      viewport: document.getElementById('viewport'),
+      statusPill: document.getElementById('statusPill'),
+      previewTargetSelect: document.getElementById('previewTargetSelect'),
+      previewMapSelect: document.getElementById('previewMapSelect'),
+      previewPrevBtn: document.getElementById('previewPrevBtn'),
+      previewNextBtn: document.getElementById('previewNextBtn'),
+      previewOriginalBtn: document.getElementById('previewOriginalBtn'),
+      previewChannel: document.getElementById('previewChannel'),
+      previewCounter: document.getElementById('previewCounter'),
+      progressBox: document.getElementById('progressBox'),
+      progressText: document.getElementById('progressText'),
+      progressFill: document.getElementById('progressFill'),
+      results: document.getElementById('results'),
+      resultsBody: document.getElementById('resultsBody'),
+      hideResults: document.getElementById('hideResults')
+    };
+
+    const state = {
+      renderer: null,
+      scene: null,
+      camera: null,
+      controls: null,
+      root: null,
+      modelFileName: 'model',
+      meshes: [],
+      targets: [],
+      skippedNoUV: 0,
+      originalMaterials: new Map(),
+      bounds: new THREE.Box3(),
+      boundsSize: new THREE.Vector3(1, 1, 1),
+      boundsCenter: new THREE.Vector3(),
+      boundsDiag: 1,
+      bvhMesh: null,
+      bvhGeometry: null,
+      occlusionGeometry: null,
+      occlusionGeometryKey: '',
+      results: new Map(),
+      curvatureCache: new Map(),
+      uvIslandCache: new Map(),
+      packedCache: new Map(),
+      gpuBaker: null,
+      workerPool: null,
+      lastBakeStats: null,
+      isBaking: false,
+      cancelBake: false,
+      previewMaterials: [],
+      activePreviewTarget: '__all__',
+      activePreviewMap: ''
+    };
+    const mask = {
+      layers: [], nextId: 1, revision: 0, busy: false, timer: null, queued: false,
+      cacheKey: '', fields: {}, sourceVersion: 0, worker: null, sentVersion: -1,
+      pending: null, result: null, composites: new Map(), runs: 0, sourceBakes: 0
+    };
+    const COMPOSITE_MAP = { key: 'composite', label: 'Layer Composite', suffix: 'Composite', channels: 'gray' };
+
+    const raycaster = new THREE.Raycaster();
+    raycaster.firstHitOnly = true;
+    raycaster.near = 0;
+
+    const tmpV0 = new THREE.Vector3();
+    const tmpV1 = new THREE.Vector3();
+    const tmpV2 = new THREE.Vector3();
+    const tmpN0 = new THREE.Vector3();
+    const tmpN1 = new THREE.Vector3();
+    const tmpN2 = new THREE.Vector3();
+    const tmpUV0 = new THREE.Vector2();
+    const tmpUV1 = new THREE.Vector2();
+    const tmpUV2 = new THREE.Vector2();
+    const tmpC0 = new THREE.Vector4();
+    const tmpC1 = new THREE.Vector4();
+    const tmpC2 = new THREE.Vector4();
+    const tmpP = new THREE.Vector3();
+    const tmpN = new THREE.Vector3();
+    const tmpRayOrigin = new THREE.Vector3();
+    const tmpRayDir = new THREE.Vector3();
+    const tmpTangent = new THREE.Vector3();
+    const tmpBitangent = new THREE.Vector3();
+    const tmpAxis = new THREE.Vector3();
+
+    initScene();
+    wireEvents();
+    initMaskEditor();
+    animate();
+
+    function initScene() {
+      state.renderer = new THREE.WebGLRenderer({ canvas: els.viewport, antialias: true, preserveDrawingBuffer: true });
+      state.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+      state.renderer.outputColorSpace = THREE.SRGBColorSpace;
+      state.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      state.renderer.toneMappingExposure = 1.0;
+
+      state.scene = new THREE.Scene();
+      state.scene.background = new THREE.Color(0xf3f4f5);
+
+      state.camera = new THREE.PerspectiveCamera(45, 1, 0.001, 100000);
+      state.camera.position.set(2.8, 2.0, 3.2);
+
+      state.controls = new OrbitControls(state.camera, els.viewport);
+      state.controls.enableDamping = true;
+      state.controls.dampingFactor = 0.08;
+      state.controls.target.set(0, 0.5, 0);
+
+      const hemi = new THREE.HemisphereLight(0xffffff, 0x7b8798, 1.8);
+      state.scene.add(hemi);
+      const key = new THREE.DirectionalLight(0xffffff, 2.2);
+      key.position.set(4, 6, 5);
+      key.castShadow = false;
+      state.scene.add(key);
+      const rim = new THREE.DirectionalLight(0xcfe4ff, 0.65);
+      rim.position.set(-4, 3, -3);
+      state.scene.add(rim);
+
+      const grid = new THREE.GridHelper(10, 20, 0xd6d9de, 0xe7e9ec);
+      grid.position.y = 0;
+      grid.material.transparent = true;
+      grid.material.opacity = 0.38;
+      state.scene.add(grid);
+
+      window.addEventListener('resize', resizeRenderer);
+      resizeRenderer();
+    }
+
+    function resizeRenderer() {
+      const w = els.viewport.clientWidth || 1;
+      const h = els.viewport.clientHeight || 1;
+      state.renderer.setSize(w, h, false);
+      state.camera.aspect = w / h;
+      state.camera.updateProjectionMatrix();
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      state.controls.update();
+      state.renderer.render(state.scene, state.camera);
+    }
+
+    function wireEvents() {
+      els.fileInput.addEventListener('change', onFilePicked);
+      els.coreMapsBtn.addEventListener('click', () => setMapSelection(key => CORE_MAPS.has(key)));
+      els.allMapsBtn.addEventListener('click', () => setMapSelection(() => true));
+      els.clearMapsBtn.addEventListener('click', () => setMapSelection(() => false));
+      els.bakeBtn.addEventListener('click', bakeSelected);
+      els.cancelBtn.addEventListener('click', () => {
+        state.cancelBake = true;
+        state.workerPool?.dispose();
+        state.workerPool = null;
+        setStatus('Cancel requested. Finishing current tile…');
+      });
+      els.downloadAllBtn.addEventListener('click', downloadAllZip);
+      els.restoreBtn.addEventListener('click', () => {
+        els.previewMapSelect.value = '';
+        state.activePreviewMap = '';
+        restoreOriginalMaterials();
+        updatePreviewHUD();
+      });
+      els.fitBtn.addEventListener('click', frameAsset);
+      els.hideResults.addEventListener('click', () => els.results.classList.remove('show'));
+      els.previewTargetSelect.addEventListener('change', () => {
+        state.activePreviewTarget = els.previewTargetSelect.value || '__all__';
+        refreshPreviewMapOptions(state.activePreviewMap);
+        applyScenePreviewFromControls();
+      });
+      els.previewMapSelect.addEventListener('change', applyScenePreviewFromControls);
+      els.previewPrevBtn.addEventListener('click', () => cycleScenePreview(-1));
+      els.previewNextBtn.addEventListener('click', () => cycleScenePreview(1));
+      els.previewOriginalBtn.addEventListener('click', () => {
+        els.previewMapSelect.value = '';
+        applyScenePreviewFromControls();
+      });
+      window.addEventListener('keydown', onPreviewShortcut);
+    }
+
+    async function onFilePicked(ev) {
+      const file = ev.target.files?.[0];
+      if (!file) return;
+      resetAsset();
+      state.modelFileName = file.name.replace(/\.(glb|gltf)$/i, '') || 'model';
+      setStatus(`Loading ${file.name}…`);
+      els.loadHint.textContent = 'Reading GLB from disk…';
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const loader = new GLTFLoader();
+        loader.parse(arrayBuffer, '', gltf => {
+          try {
+            handleLoadedGLTF(gltf, file.name);
+          } catch (err) {
+            console.error(err);
+            failLoad(err);
+          }
+        }, failLoad);
+      } catch (err) {
+        failLoad(err);
+      }
+    }
+
+    function failLoad(err) {
+      console.error(err);
+      setStatus('Could not load GLB. See console for details.', true);
+      els.loadHint.innerHTML = '<span class="bad">Load failed.</span> This page expects a binary .glb with embedded resources.';
+    }
+
+    function handleLoadedGLTF(gltf, fileName) {
+      state.root = gltf.scene || gltf.scenes[0];
+      if (!state.root) throw new Error('The GLB did not contain a scene.');
+      state.scene.add(state.root);
+      state.root.updateMatrixWorld(true);
+
+      state.meshes = [];
+      state.originalMaterials.clear();
+      state.root.traverse(obj => {
+        if (obj.isMesh && obj.geometry?.attributes?.position) {
+          obj.frustumCulled = false;
+          state.meshes.push(obj);
+          state.originalMaterials.set(obj.uuid, obj.material);
+          if (obj.material) {
+            const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+            mats.forEach(mat => {
+              if (mat) mat.side = THREE.DoubleSide;
+            });
+          }
+        }
+      });
+
+      computeSceneBounds();
+      buildBVH();
+      collectTargets();
+      updateTargetSelect();
+      refreshMaskTargets();
+      updatePreviewControls();
+      updateStats(fileName);
+      frameAsset();
+
+      const targetCount = state.targets.length;
+      els.bakeBtn.disabled = targetCount === 0;
+      els.restoreBtn.disabled = false;
+      els.fitBtn.disabled = false;
+      els.loadHint.innerHTML = targetCount
+        ? '<span class="ok">Ready.</span> Pick maps and bake. Then use the Scene Bake switcher above the viewport, its arrow buttons, or [ and ] to inspect every result directly on the model.'
+        : '<span class="bad">No bakeable submeshes found.</span> Meshes need UV0 coordinates to bake texture maps.';
+      setStatus(targetCount ? `Loaded ${fileName}: ${targetCount} bake target${targetCount === 1 ? '' : 's'}.` : 'Loaded asset, but no UV bake targets were found.', targetCount === 0);
+    }
+
+    function resetAsset() {
+      resetMaskEditor();
+      state.gpuBaker?.dispose();
+      state.gpuBaker = null;
+      state.workerPool?.dispose();
+      state.workerPool = null;
+      state.packedCache.clear();
+      restoreOriginalMaterials();
+      if (state.root) state.scene.remove(state.root);
+      state.root = null;
+      state.meshes = [];
+      state.targets = [];
+      state.skippedNoUV = 0;
+      state.results.clear();
+      state.curvatureCache.clear();
+      state.uvIslandCache.clear();
+      disposeBVH();
+      els.assetStats.innerHTML = '';
+      els.resultsBody.innerHTML = '';
+      els.results.classList.remove('show');
+      state.activePreviewTarget = '__all__';
+      state.activePreviewMap = '';
+      resetPreviewControls();
+      els.targetSelect.innerHTML = '<option>No GLB loaded</option>';
+      els.targetSelect.disabled = true;
+      els.bakeBtn.disabled = true;
+      els.downloadAllBtn.disabled = true;
+      els.restoreBtn.disabled = true;
+      els.fitBtn.disabled = true;
+    }
+
+    function disposeBVH() {
+      state.occlusionGeometry?.disposeBoundsTree();
+      state.occlusionGeometry?.dispose();
+      state.occlusionGeometry = null;
+      state.occlusionGeometryKey = '';
+      if (state.bvhGeometry) {
+        if (state.bvhGeometry.boundsTree) state.bvhGeometry.disposeBoundsTree();
+        state.bvhGeometry.dispose();
+      }
+      state.bvhGeometry = null;
+      state.bvhMesh = null;
+    }
+
+    function computeSceneBounds() {
+      state.root.updateMatrixWorld(true);
+      state.bounds = new THREE.Box3().setFromObject(state.root);
+      if (state.bounds.isEmpty()) {
+        state.bounds.setFromCenterAndSize(new THREE.Vector3(), new THREE.Vector3(1, 1, 1));
+      }
+      state.bounds.getSize(state.boundsSize);
+      state.bounds.getCenter(state.boundsCenter);
+      state.boundsDiag = Math.max(1e-6, state.boundsSize.length());
+    }
+
+    function buildBVH() {
+      disposeBVH();
+      const geos = [];
+      let triCount = 0;
+      state.root.updateMatrixWorld(true);
+      state.root.traverse(mesh => {
+        if (!mesh.isMesh || !mesh.geometry?.attributes?.position) return;
+        const source = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry.clone();
+        source.applyMatrix4(mesh.matrixWorld);
+        const posOnly = new THREE.BufferGeometry();
+        posOnly.setAttribute('position', source.getAttribute('position').clone());
+        geos.push(posOnly);
+        triCount += posOnly.getAttribute('position').count / 3;
+        source.dispose();
+      });
+      if (!geos.length) throw new Error('No triangle geometry found.');
+      const merged = mergeGeometries(geos, false);
+      geos.forEach(g => g.dispose());
+      if (!merged) throw new Error('Could not merge geometry for ray baking.');
+      merged.computeBoundsTree();
+      const mat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+      state.bvhGeometry = merged;
+      state.bvhMesh = new THREE.Mesh(merged, mat);
+      state.bvhMesh.updateMatrixWorld(true);
+      state.bvhTriangleCount = triCount;
+    }
+
+    function getOcclusionGeometry(target, mode = 'all') {
+      if (mode === 'all') return state.bvhGeometry;
+      const key = `${target.mesh.uuid}:${mode}`;
+      if (state.occlusionGeometryKey === key) return state.occlusionGeometry;
+      state.occlusionGeometry?.disposeBoundsTree(); state.occlusionGeometry?.dispose();
+      state.occlusionGeometry = null; state.occlusionGeometryKey = key;
+      const parts = [];
+      for (const mesh of state.meshes) {
+        if ((mesh === target.mesh) !== (mode === 'self')) continue;
+        const source = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry.clone();
+        source.applyMatrix4(mesh.matrixWorld);
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', source.attributes.position.clone());
+        parts.push(geometry); source.dispose();
+      }
+      if (!parts.length) return null;
+      const geometry = mergeGeometries(parts, false);
+      parts.forEach(g => g.dispose());
+      geometry.computeBoundsTree(); state.occlusionGeometry = geometry;
+      return geometry;
+    }
+
+    function collectTargets() {
+      state.targets = [];
+      state.skippedNoUV = 0;
+      let targetIndex = 0;
+      state.root.traverse(mesh => {
+        if (!mesh.isMesh || !mesh.geometry?.attributes?.position) return;
+        const hasUV = !!mesh.geometry.attributes.uv;
+        if (!hasUV) {
+          state.skippedNoUV++;
+          return;
+        }
+        const groups = mesh.geometry.groups || [];
+        const materials = Array.isArray(mesh.material) ? mesh.material : null;
+        if (materials && groups.length > 1) {
+          groups.forEach((group, groupIndex) => {
+            if (group.count < 3) return;
+            const materialName = materials[group.materialIndex]?.name || `material ${group.materialIndex}`;
+            state.targets.push({
+              key: `t${targetIndex++}`,
+              mesh,
+              group,
+              groupIndex,
+              materialIndex: group.materialIndex,
+              displayName: `${objectPath(mesh)} · ${materialName}`,
+              safeName: safeFileName(`${objectPath(mesh)}_${materialName}`)
+            });
+          });
+        } else {
+          state.targets.push({
+            key: `t${targetIndex++}`,
+            mesh,
+            group: null,
+            groupIndex: -1,
+            materialIndex: 0,
+            displayName: objectPath(mesh),
+            safeName: safeFileName(objectPath(mesh))
+          });
+        }
+      });
+    }
+
+    function objectPath(obj) {
+      const names = [];
+      let cur = obj;
+      while (cur && cur !== state.root) {
+        names.unshift(cur.name || cur.type || 'Object');
+        cur = cur.parent;
+      }
+      return names.join('/') || obj.name || obj.uuid.slice(0, 8);
+    }
+
+    function updateTargetSelect() {
+      els.targetSelect.innerHTML = '';
+      if (!state.targets.length) {
+        els.targetSelect.disabled = true;
+        els.targetSelect.append(new Option('No UV bake targets', ''));
+        return;
+      }
+      els.targetSelect.disabled = false;
+      els.targetSelect.append(new Option(`All bakeable submeshes (${state.targets.length})`, '__all__'));
+      state.targets.forEach(target => els.targetSelect.append(new Option(target.displayName, target.key)));
+    }
+
+    function updateStats(fileName) {
+      const meshCount = state.meshes.length;
+      const targetCount = state.targets.length;
+      const triCount = Math.round(state.bvhTriangleCount || 0).toLocaleString();
+      const diag = state.boundsDiag.toPrecision(4);
+      els.assetStats.innerHTML = `
+        <div class="stat"><span>File</span><strong>${escapeHtml(fileName)}</strong></div>
+        <div class="stat"><span>Meshes</span><strong>${meshCount}</strong></div>
+        <div class="stat"><span>Bake targets</span><strong>${targetCount}</strong></div>
+        <div class="stat"><span>Ray triangles</span><strong>${triCount}</strong></div>
+        <div class="stat"><span>Bounds diagonal</span><strong>${diag}</strong></div>
+        ${state.skippedNoUV ? `<div class="stat"><span>No UV0 skipped</span><strong class="warning">${state.skippedNoUV}</strong></div>` : ''}
+      `;
+    }
+
+    function frameAsset() {
+      if (!state.root) return;
+      computeSceneBounds();
+      const center = state.boundsCenter;
+      const radius = Math.max(0.001, state.boundsSize.length() * 0.55);
+      const dir = new THREE.Vector3(1.25, 0.85, 1.4).normalize();
+      state.camera.near = Math.max(0.0001, radius / 2000);
+      state.camera.far = Math.max(100, radius * 2000);
+      state.camera.position.copy(center).addScaledVector(dir, radius * 2.75);
+      state.camera.updateProjectionMatrix();
+      state.controls.target.copy(center);
+      state.controls.update();
+    }
+
+    function selectedMapKeys() {
+      return [...els.mapChecks.querySelectorAll('input[type="checkbox"]')]
+        .filter(cb => cb.checked)
+        .map(cb => cb.dataset.map);
+    }
+
+    function setMapSelection(predicate) {
+      for (const cb of els.mapChecks.querySelectorAll('input[type="checkbox"]')) {
+        cb.checked = !!predicate(cb.dataset.map);
+      }
+    }
+
+    function readSettings() {
+      const numberOr = (value, fallback) => {
+        const n = parseFloat(value);
+        return Number.isFinite(n) ? n : fallback;
+      };
+      const percent = (value, fallback) => numberOr(value, fallback) / 100 * state.boundsDiag;
+      const dustAngle = Math.max(1, Math.min(89, numberOr(els.dustAngle.value, 55)));
+      return {
+        occlusionSource: document.getElementById('occlusionSource').value,
+        resolution: parseInt(els.resolution.value, 10),
+        samples: Math.max(4, Math.min(128, parseInt(els.samples.value, 10) || 24)),
+        padding: Math.max(0, Math.min(32, parseInt(els.padding.value, 10) || 0)),
+        flipV: els.uvOrigin.value === 'opengl',
+        bias: Math.max(1e-8, percent(els.biasPct.value, 0.035)),
+        aoRadius: Math.max(1e-8, percent(els.aoPct.value, 12)),
+        aoStrength: Math.max(0, numberOr(els.aoStrength.value, 1)),
+        cavityRadius: Math.max(1e-8, percent(els.cavityPct.value, 2)),
+        cavityStrength: Math.max(0, numberOr(els.cavityStrength.value, 1)),
+        bentRadius: Math.max(1e-8, percent(els.bentPct.value, 18)),
+        curvatureStrength: Math.max(0, numberOr(els.curvatureStrength.value, 1)),
+        edgeWearStrength: Math.max(0, numberOr(els.edgeWearStrength.value, 2.2)),
+        dustStrength: Math.max(0, numberOr(els.dustStrength.value, 1.35)),
+        dustAngle,
+        dustCos: Math.cos(THREE.MathUtils.degToRad(dustAngle)),
+        uvBorderWidth: Math.max(1, Math.min(32, parseInt(els.uvBorderWidth.value, 10) || 2)),
+        thicknessMax: Math.max(1e-8, percent(els.thicknessPct.value, 28)),
+        transPower: Math.max(0.01, numberOr(els.transPower.value, 1)),
+        upAxis: axisVector(els.upAxis.value),
+        depthAxisName: els.depthAxis.value,
+        gravity: axisVector(els.gravityAxis.value),
+        leakDistance: Math.max(1e-8, percent(els.leakPct.value, 35)),
+        dripFreq: Math.max(0.01, numberOr(els.dripFreq.value, 9)),
+        leakStrength: Math.max(0, numberOr(els.leakStrength.value, 1))
+      };
+    }
+
+    async function bakeSelected() {
+      if (!state.root || state.isBaking || mask.busy) return;
+      const maps = selectedMapKeys();
+      if (!maps.length) {
+        setStatus('Select at least one map to bake.', true);
+        return;
+      }
+      const targetValue = els.targetSelect.value;
+      const targets = targetValue === '__all__' ? state.targets : state.targets.filter(t => t.key === targetValue);
+      if (!targets.length) {
+        setStatus('Select a valid bake target.', true);
+        return;
+      }
+
+      state.isBaking = true;
+      updateMaskButtons();
+      state.cancelBake = false;
+      els.bakeBtn.disabled = true;
+      els.cancelBtn.disabled = false;
+      els.fileInput.disabled = true;
+      els.downloadAllBtn.disabled = true;
+      els.progressBox.classList.add('show');
+      setStatus('Baking…');
+      restoreOriginalMaterials(false);
+
+      try {
+        const settings = readSettings();
+        for (let i = 0; i < targets.length; i++) {
+          if (state.cancelBake) throw new Error('Bake cancelled.');
+          const target = targets[i];
+          const prefix = targets.length > 1 ? `${i + 1}/${targets.length} · ` : '';
+          const result = await bakeAccelerated(target, maps, settings, prefix);
+          state.results.set(target.key, result);
+          renderResults();
+          updatePreviewControls();
+          els.downloadAllBtn.disabled = state.results.size === 0;
+        }
+        if (state.activePreviewMap) applyScenePreviewFromControls(false);
+        setProgress('Bake complete.', 1);
+        setStatus(`Bake complete: ${state.results.size} target${state.results.size === 1 ? '' : 's'} ready. Use the Scene Bake controls to switch maps on the model.`);
+      } catch (err) {
+        console.warn(err);
+        setStatus(err.message || 'Bake stopped.', true);
+      } finally {
+        state.isBaking = false;
+        updateMaskButtons();
+        state.cancelBake = false;
+        els.bakeBtn.disabled = state.targets.length === 0;
+        els.cancelBtn.disabled = true;
+        els.fileInput.disabled = false;
+        els.downloadAllBtn.disabled = state.results.size === 0;
+        setTimeout(() => els.progressBox.classList.remove('show'), 500);
+        if (mask.queued) scheduleMaskUpdate(false);
+      }
+    }
+
+    async function bakeTarget(target, maps, settings, prefix = '') {
+      const res = settings.resolution;
+      const enabled = new Set(maps);
+      const canvases = new Map();
+      const images = new Map();
+      const coverage = new Uint8Array(res * res);
+      maps.forEach(key => {
+        const canvas = document.createElement('canvas');
+        canvas.width = res;
+        canvas.height = res;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const imageData = ctx.createImageData(res, res);
+        canvases.set(key, canvas);
+        images.set(key, { ctx, imageData });
+      });
+
+      const geom = target.mesh.geometry;
+      const posAttr = geom.getAttribute('position');
+      const uvAttr = geom.getAttribute('uv');
+      const normalAttr = geom.getAttribute('normal');
+      const colorAttr = geom.getAttribute('color');
+      const indexAttr = geom.index;
+      const normalMatrix = new THREE.Matrix3().getNormalMatrix(target.mesh.matrixWorld);
+      const triRange = triangleRange(target);
+      const totalTris = Math.floor(triRange.count / 3);
+      const samples = generateHemisphereSamples(settings.samples);
+
+      const needsCurvature = enabled.has('curvature') || enabled.has('convexity') || enabled.has('edgewear');
+      const needsIslandAnalysis = enabled.has('uvisland');
+      if (needsCurvature || needsIslandAnalysis) {
+        setProgress(`${prefix}Analyzing topology for ${target.displayName}…`, 0);
+        await yieldToBrowser();
+      }
+      const curvatureData = needsCurvature ? getCurvatureData(target.mesh) : null;
+      const islandData = needsIslandAnalysis ? getUVIslandData(target, triRange) : null;
+      const needsOcclusion = enabled.has('ao') || enabled.has('cavity') || enabled.has('bentnormal') ||
+        enabled.has('leaking') || enabled.has('dust') || enabled.has('edgewear');
+      const needsThickness = enabled.has('thickness') || enabled.has('translucency');
+      const maxOcclusionRadius = Math.max(
+        enabled.has('ao') ? settings.aoRadius : 0,
+        enabled.has('bentnormal') ? settings.bentRadius : 0,
+        (enabled.has('cavity') || enabled.has('leaking') || enabled.has('dust') || enabled.has('edgewear')) ? settings.cavityRadius : 0
+      );
+
+      let coveredPixels = 0;
+      let processedTris = 0;
+      let lastYield = performance.now();
+      setProgress(`${prefix}Baking ${target.displayName}…`, 0);
+
+      for (let cursor = triRange.start; cursor < triRange.start + triRange.count; cursor += 3) {
+        if (state.cancelBake) throw new Error('Bake cancelled.');
+        const ia = getVertexIndex(indexAttr, cursor);
+        const ib = getVertexIndex(indexAttr, cursor + 1);
+        const ic = getVertexIndex(indexAttr, cursor + 2);
+        const triOrdinal = Math.floor((cursor - triRange.start) / 3);
+
+        tmpV0.fromBufferAttribute(posAttr, ia).applyMatrix4(target.mesh.matrixWorld);
+        tmpV1.fromBufferAttribute(posAttr, ib).applyMatrix4(target.mesh.matrixWorld);
+        tmpV2.fromBufferAttribute(posAttr, ic).applyMatrix4(target.mesh.matrixWorld);
+        tmpUV0.fromBufferAttribute(uvAttr, ia);
+        tmpUV1.fromBufferAttribute(uvAttr, ib);
+        tmpUV2.fromBufferAttribute(uvAttr, ic);
+
+        if (normalAttr) {
+          tmpN0.fromBufferAttribute(normalAttr, ia).applyMatrix3(normalMatrix).normalize();
+          tmpN1.fromBufferAttribute(normalAttr, ib).applyMatrix3(normalMatrix).normalize();
+          tmpN2.fromBufferAttribute(normalAttr, ic).applyMatrix3(normalMatrix).normalize();
+        } else {
+          tmpN0.copy(tmpV1).sub(tmpV0).cross(tmpV2.clone().sub(tmpV0)).normalize();
+          tmpN1.copy(tmpN0);
+          tmpN2.copy(tmpN0);
+        }
+
+        if (colorAttr) {
+          readVertexColor(colorAttr, ia, tmpC0);
+          readVertexColor(colorAttr, ib, tmpC1);
+          readVertexColor(colorAttr, ic, tmpC2);
+        } else {
+          tmpC0.set(1, 1, 1, 1);
+          tmpC1.set(1, 1, 1, 1);
+          tmpC2.set(1, 1, 1, 1);
+        }
+
+        const islandId = islandData ? islandData.triangleIslands[triOrdinal] : 0;
+        const islandColorOffset = islandId * 3;
+        const tri = {
+          p0: tmpV0.clone(), p1: tmpV1.clone(), p2: tmpV2.clone(),
+          n0: tmpN0.clone(), n1: tmpN1.clone(), n2: tmpN2.clone(),
+          uv0: tmpUV0.clone(), uv1: tmpUV1.clone(), uv2: tmpUV2.clone(),
+          c0: tmpC0.clone(), c1: tmpC1.clone(), c2: tmpC2.clone(),
+          k0: curvatureData ? curvatureData[ia] : 0,
+          k1: curvatureData ? curvatureData[ib] : 0,
+          k2: curvatureData ? curvatureData[ic] : 0,
+          islandR: islandData ? islandData.colors[islandColorOffset] : 1,
+          islandG: islandData ? islandData.colors[islandColorOffset + 1] : 1,
+          islandB: islandData ? islandData.colors[islandColorOffset + 2] : 1
+        };
+
+        rasterTriangleUV(res, tri.uv0, tri.uv1, tri.uv2, settings.flipV, (x, y, w0, w1, w2) => {
+          const pixelIndex = y * res + x;
+          if (!coverage[pixelIndex]) {
+            coverage[pixelIndex] = 1;
+            coveredPixels++;
+          }
+
+          tmpP.set(0, 0, 0)
+            .addScaledVector(tri.p0, w0)
+            .addScaledVector(tri.p1, w1)
+            .addScaledVector(tri.p2, w2);
+          tmpN.set(0, 0, 0)
+            .addScaledVector(tri.n0, w0)
+            .addScaledVector(tri.n1, w1)
+            .addScaledVector(tri.n2, w2)
+            .normalize();
+
+          let occAO = 0;
+          let occCavity = 0;
+          let bentX = tmpN.x;
+          let bentY = tmpN.y;
+          let bentZ = tmpN.z;
+          if (needsOcclusion && maxOcclusionRadius > 0) {
+            const occ = computeOcclusion(tmpP, tmpN, samples, maxOcclusionRadius, settings);
+            occAO = occ.ao;
+            occCavity = occ.cavity;
+            bentX = occ.bentX;
+            bentY = occ.bentY;
+            bentZ = occ.bentZ;
+          }
+
+          let thickness = null;
+          if (needsThickness) thickness = computeThickness(tmpP, tmpN, settings);
+
+          const curvatureBase = tri.k0 * w0 + tri.k1 * w1 + tri.k2 * w2;
+          const signedCurvature = Math.max(-1, Math.min(1, curvatureBase * settings.curvatureStrength));
+          const convexity = clamp01(signedCurvature);
+          const uvU = tri.uv0.x * w0 + tri.uv1.x * w1 + tri.uv2.x * w2;
+          const uvV = tri.uv0.y * w0 + tri.uv1.y * w1 + tri.uv2.y * w2;
+
+          if (enabled.has('ao')) {
+            const value = clamp01(1 - occAO * settings.aoStrength);
+            writeGray(images.get('ao').imageData, pixelIndex, value);
+          }
+          if (enabled.has('cavity')) {
+            const value = clamp01(1 - occCavity * settings.cavityStrength);
+            writeGray(images.get('cavity').imageData, pixelIndex, value);
+          }
+          if (enabled.has('curvature')) {
+            writeGray(images.get('curvature').imageData, pixelIndex, 0.5 + 0.5 * signedCurvature);
+          }
+          if (enabled.has('convexity')) {
+            writeGray(images.get('convexity').imageData, pixelIndex, convexity);
+          }
+          if (enabled.has('edgewear')) {
+            writeGray(images.get('edgewear').imageData, pixelIndex, computeEdgeWear(tmpP, tmpN, curvatureBase, occCavity, settings));
+          }
+          if (enabled.has('bentnormal')) {
+            writeRGB(images.get('bentnormal').imageData, pixelIndex,
+              bentX * 0.5 + 0.5, bentY * 0.5 + 0.5, bentZ * 0.5 + 0.5);
+          }
+          if (enabled.has('thickness')) {
+            writeGray(images.get('thickness').imageData, pixelIndex, thickness);
+          }
+          if (enabled.has('translucency')) {
+            const trans = Math.pow(clamp01(1 - thickness), settings.transPower);
+            writeGray(images.get('translucency').imageData, pixelIndex, trans);
+          }
+          if (enabled.has('worldnormal')) {
+            writeRGB(images.get('worldnormal').imageData, pixelIndex,
+              tmpN.x * 0.5 + 0.5, tmpN.y * 0.5 + 0.5, tmpN.z * 0.5 + 0.5);
+          }
+          if (enabled.has('position')) {
+            writeRGB(images.get('position').imageData, pixelIndex,
+              (tmpP.x - state.bounds.min.x) / Math.max(1e-8, state.boundsSize.x),
+              (tmpP.y - state.bounds.min.y) / Math.max(1e-8, state.boundsSize.y),
+              (tmpP.z - state.bounds.min.z) / Math.max(1e-8, state.boundsSize.z));
+          }
+          if (enabled.has('topbottom')) {
+            const topBottom = clamp01(0.5 + 0.5 * tmpN.dot(settings.upAxis));
+            writeGray(images.get('topbottom').imageData, pixelIndex, smoothContrast(topBottom, 1.15));
+          }
+          if (enabled.has('slope')) {
+            const verticality = clamp01(1 - Math.abs(tmpN.dot(settings.upAxis)));
+            writeGray(images.get('slope').imageData, pixelIndex, smoothstep(0.02, 0.98, verticality));
+          }
+          if (enabled.has('axisdepth')) {
+            const axisDepth = computeAxisDepth(tmpP, settings.depthAxisName);
+            writeGray(images.get('axisdepth').imageData, pixelIndex, axisDepth);
+          }
+          if (enabled.has('leaking')) {
+            const leak = computeLeaking(tmpP, tmpN, occCavity, settings);
+            writeGray(images.get('leaking').imageData, pixelIndex, leak);
+          }
+          if (enabled.has('dust')) {
+            writeGray(images.get('dust').imageData, pixelIndex, computeDust(tmpP, tmpN, occCavity, settings));
+          }
+          if (enabled.has('uvmask')) {
+            writeGray(images.get('uvmask').imageData, pixelIndex, 1);
+          }
+          if (enabled.has('uvisland')) {
+            writeRGB(images.get('uvisland').imageData, pixelIndex, tri.islandR, tri.islandG, tri.islandB);
+          }
+          if (enabled.has('uvcoord')) {
+            writeRGB(images.get('uvcoord').imageData, pixelIndex, clamp01(uvU), clamp01(uvV), 0);
+          }
+          if (enabled.has('vertexcolor')) {
+            writeRGB(images.get('vertexcolor').imageData, pixelIndex,
+              tri.c0.x * w0 + tri.c1.x * w1 + tri.c2.x * w2,
+              tri.c0.y * w0 + tri.c1.y * w1 + tri.c2.y * w2,
+              tri.c0.z * w0 + tri.c1.z * w1 + tri.c2.z * w2);
+          }
+          if (enabled.has('vertexalpha')) {
+            writeGray(images.get('vertexalpha').imageData, pixelIndex,
+              tri.c0.w * w0 + tri.c1.w * w1 + tri.c2.w * w2);
+          }
+        });
+
+        processedTris++;
+        const now = performance.now();
+        if (processedTris % 8 === 0 || now - lastYield > 60) {
+          setProgress(`${prefix}Baking ${target.displayName} · ${processedTris}/${totalTris} triangles · ${coveredPixels.toLocaleString()} pixels`, processedTris / Math.max(1, totalTris));
+          lastYield = now;
+          await yieldToBrowser();
+        }
+      }
+
+      if (enabled.has('uvborder')) {
+        buildUVBorderImage(images.get('uvborder').imageData, coverage, res, settings.uvBorderWidth);
+      }
+
+      maps.forEach(key => {
+        const pack = images.get(key);
+        if (settings.padding > 0) dilateImageData(pack.imageData, res, settings.padding);
+        pack.ctx.putImageData(pack.imageData, 0, 0);
+      });
+
+      const result = {
+        target,
+        maps: new Map(),
+        settings: { ...settings },
+        createdAt: new Date()
+      };
+      maps.forEach(key => {
+        result.maps.set(key, {
+          key,
+          label: MAPS.find(m => m.key === key)?.label || key,
+          canvas: canvases.get(key),
+          resolution: res
+        });
+      });
+      return result;
+    }
+
+    function initMaskEditor() {
+      const source = document.getElementById('maskSource');
+      for (const map of MAPS) source.append(new Option(map.label, map.key));
+      for (const [key, name] of [['image', 'Image mask'], ['noise', 'Procedural noise'], ['checker', 'Checker'], ['waves', 'Waves']]) source.append(new Option(name, key));
+      document.getElementById('maskAdd').onclick = () => addMaskLayer(source.value);
+      document.getElementById('maskApply').onclick = () => runMask();
+      document.getElementById('maskPNG').onclick = () => runMask({ full: true, exportType: 'png' });
+      document.getElementById('maskJSON').onclick = () => runMask({ full: true, exportType: 'json' });
+      document.getElementById('maskCancel').onclick = cancelMask;
+      for (const id of ['maskTarget', 'maskThreshold', 'maskSmooth', 'maskLive']) document.getElementById(id).addEventListener('change', () => scheduleMaskUpdate());
+      for (const id of ['maskThreshold', 'maskSmooth']) document.getElementById(id).addEventListener('input', () => scheduleMaskUpdate());
+      // Changes to bake inputs affect source fields; layer-only edits reuse them.
+      document.querySelector('aside').addEventListener('change', event => {
+        if (!event.target.closest('#maskEditor') && event.target.matches('input,select') && event.target !== els.fileInput && !event.target.closest('#mapChecks')) scheduleMaskUpdate();
+      });
+      renderMaskLayers(); updateMaskButtons();
+    }
+
+    function refreshMaskTargets() {
+      const select = document.getElementById('maskTarget');
+      const wanted = select.value; select.innerHTML = '';
+      for (const target of state.targets) select.append(new Option(target.displayName, target.key));
+      if (state.targets.some(t => t.key === wanted)) select.value = wanted;
+      select.disabled = !state.targets.length; updateMaskButtons();
+      if (mask.layers.length) scheduleMaskUpdate();
+    }
+
+    function resetMaskEditor() {
+      cancelMask();
+      mask.cacheKey = ''; mask.fields = {}; mask.sourceVersion++; mask.result = null;
+      mask.composites.clear();
+      document.getElementById('maskCanvas').hidden = true;
+      document.getElementById('maskTarget').innerHTML = '';
+      document.getElementById('maskTarget').disabled = true;
+      document.getElementById('maskStatus').textContent = 'Load a model to apply the layer stack.';
+    }
+
+    function addMaskLayer(source = 'ao') {
+      const layer = { id: mask.nextId++, source, enabled: true, blend: 'max', strength: 1, invert: false, threshold: 0, smooth: 0,
+        channel: 'luminance', occlusion: 'inherit', mapping: 'uv', scale: 1, offsetU: 0, offsetV: 0, contrast: 1, image: null };
+      mask.layers.push(layer); renderMaskLayers(); scheduleMaskUpdate(); return layer;
+    }
+
+    function renderMaskLayers() {
+      const container = document.getElementById('maskLayers');
+      const numeric = (name, label, min, max, step, value) => `<div><label>${label}<input data-field="${name}" type="number" min="${min}" max="${max}" step="${step}" value="${value}"></label></div>`;
+      const options = (items, value) => items.map(([key, label]) => `<option value="${key}" ${key === value ? 'selected' : ''}>${label}</option>`).join('');
+      container.innerHTML = mask.layers.map((layer, index) => {
+        const title = MAPS.find(m => m.key === layer.source)?.label || ({ image: 'Image mask', noise: 'Noise', checker: 'Checker', waves: 'Waves' })[layer.source];
+        const texture = ['image', 'noise', 'checker', 'waves'].includes(layer.source);
+        const ray = rayRequirements([layer.source]);
+        return `<div class="mask-layer" data-id="${layer.id}" draggable="true">
+          <div class="mask-layer-head"><input type="checkbox" data-field="enabled" aria-label="Enable ${escapeHtml(title)}" ${layer.enabled ? 'checked' : ''}><strong>${index + 1}. ${escapeHtml(title)}</strong>
+          <button class="mini" data-action="up" aria-label="Move layer up" ${index === 0 ? 'disabled' : ''}>↑</button><button class="mini" data-action="down" aria-label="Move layer down" ${index === mask.layers.length - 1 ? 'disabled' : ''}>↓</button><button class="mini" data-action="remove" aria-label="Remove layer">×</button></div>
+          <div class="row"><label>Blend<select data-field="blend">${options([['max', 'Max / Merge'], ['add', 'Add'], ['subtract', 'Subtract']], layer.blend)}</select></label>${numeric('strength', 'Strength', 0, 2, 0.01, layer.strength)}</div>
+          <label class="inline"><input type="checkbox" data-field="invert" ${layer.invert ? 'checked' : ''}>Invert</label>
+          <div class="row">${numeric('threshold', 'Threshold', 0, 0.99, 0.01, layer.threshold)}${numeric('smooth', 'Smooth passes', 0, 8, 1, layer.smooth)}</div>
+          ${ray.occlusion || ray.leaking ? `<label>Occlusion<select data-field="occlusion">${options([['inherit', 'Use global setting'], ['all', 'Self + other objects'], ['self', 'Self only'], ['other', 'Other objects only']], layer.occlusion)}</select></label>` : ''}
+          ${layer.source === 'image' || MAPS.find(m => m.key === layer.source)?.channels === 'rgb' ? `<label>Channel<select data-field="channel">${options([['luminance', 'Luminance'], ['r', 'Red'], ['g', 'Green'], ['b', 'Blue'], ['a', 'Alpha']], layer.channel)}</select></label>` : ''}
+          ${texture ? `<details ${layer.source === 'image' ? 'open' : ''}><summary>Texture mapping</summary>
+            ${layer.source === 'image' ? `<label>${layer.image ? 'Replace image' : 'Image file'}<input type="file" data-image accept="image/*"></label><div class="hint">${escapeHtml(layer.image?.name || 'Choose an image before applying this layer.')}</div>` : ''}
+            <label>Projection<select data-field="mapping">${options([['uv', 'UV · image top-left'], ['xz', 'World XZ'], ['xy', 'World XY'], ['zy', 'World ZY']], layer.mapping)}</select></label>
+            <div class="row">${numeric('scale', 'Scale', 0.01, 1000, 0.1, layer.scale)}${numeric('contrast', 'Contrast', 0, 8, 0.1, layer.contrast)}</div>
+            <div class="row">${numeric('offsetU', 'Offset U', -10000, 10000, 0.01, layer.offsetU)}${numeric('offsetV', 'Offset V', -10000, 10000, 0.01, layer.offsetV)}</div>
+          </details>` : ''}</div>`;
+      }).join('');
+      for (const card of container.children) {
+        const layer = mask.layers.find(l => l.id === +card.dataset.id);
+        for (const input of card.querySelectorAll('[data-field]')) {
+          const eventName = input.type === 'number' ? 'input' : 'change';
+          input.addEventListener(eventName, () => {
+            let value = input.type === 'checkbox' ? input.checked : input.value;
+            if (input.type === 'number') {
+              value = Number(value); if (!Number.isFinite(value)) return;
+              value = Math.max(+input.min, Math.min(+input.max, value));
+              if (input.dataset.field === 'smooth') value = Math.round(value);
+            }
+            layer[input.dataset.field] = value; scheduleMaskUpdate();
+          });
+        }
+        for (const button of card.querySelectorAll('[data-action]')) button.onclick = () => {
+          const index = mask.layers.indexOf(layer);
+          if (button.dataset.action === 'remove') mask.layers.splice(index, 1);
+          else {
+            const next = index + (button.dataset.action === 'up' ? -1 : 1);
+            [mask.layers[index], mask.layers[next]] = [mask.layers[next], mask.layers[index]];
+          }
+          renderMaskLayers(); scheduleMaskUpdate();
+        };
+        const imageInput = card.querySelector('[data-image]');
+        if (imageInput) imageInput.onchange = async () => {
+          const file = imageInput.files[0]; if (!file) return;
+          const request = layer.imageRequest = (layer.imageRequest || 0) + 1;
+          layer.image = null; scheduleMaskUpdate();
+          try {
+            const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image', premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
+            if (request !== layer.imageRequest || !mask.layers.includes(layer)) { bitmap.close(); return; }
+            if (bitmap.width * bitmap.height > 16 * 1024 * 1024) { bitmap.close(); throw new Error('Choose an image no larger than 16 megapixels.'); }
+            const canvas = document.createElement('canvas'); canvas.width = bitmap.width; canvas.height = bitmap.height;
+            const ctx = canvas.getContext('2d', { willReadFrequently: true }); ctx.drawImage(bitmap, 0, 0); bitmap.close();
+            layer.image = { name: file.name, width: canvas.width, height: canvas.height, pixels: ctx.getImageData(0, 0, canvas.width, canvas.height).data };
+            if (mask.layers.includes(layer)) { renderMaskLayers(); scheduleMaskUpdate(); }
+          } catch (error) { document.getElementById('maskStatus').textContent = `Image could not be loaded: ${error.message}`; }
+        };
+        card.ondragstart = event => {
+          if (event.target.closest('input,select,button')) { event.preventDefault(); return; }
+          event.dataTransfer.setData('text/plain', `${layer.id}`); card.classList.add('dragging');
+        };
+        card.ondragend = () => card.classList.remove('dragging');
+        card.ondragover = event => event.preventDefault();
+        card.ondrop = event => {
+          event.preventDefault();
+          const from = mask.layers.findIndex(l => l.id === +event.dataTransfer.getData('text/plain'));
+          const to = mask.layers.indexOf(layer);
+          if (from < 0 || from === to) return;
+          mask.layers.splice(to, 0, mask.layers.splice(from, 1)[0]); renderMaskLayers(); scheduleMaskUpdate();
+        };
+      }
+      updateMaskButtons();
+    }
+
+    function updateMaskButtons() {
+      const hasTarget = state.targets.length > 0;
+      document.getElementById('maskAdd').disabled = !hasTarget;
+      for (const id of ['maskApply', 'maskPNG', 'maskJSON']) document.getElementById(id).disabled = !hasTarget || !mask.layers.length || mask.busy || state.isBaking;
+      document.getElementById('maskCancel').disabled = !mask.busy;
+    }
+
+    function scheduleMaskUpdate(invalidate = true) {
+      clearTimeout(mask.timer);
+      if (invalidate) mask.revision++;
+      mask.queued = false;
+      updateMaskButtons();
+      if (!mask.layers.length || !state.targets.length) {
+        mask.result = null; mask.composites.clear(); document.getElementById('maskCanvas').hidden = true;
+        if (state.activePreviewMap === 'composite') { state.activePreviewMap = ''; restoreOriginalMaterials(false); }
+        if (state.root) updatePreviewControls();
+        return;
+      }
+      document.getElementById('maskStatus').textContent = 'Changes pending…';
+      if (!document.getElementById('maskLive').checked) return;
+      if (mask.busy || state.isBaking) { mask.queued = true; return; }
+      mask.timer = setTimeout(() => runMask(), 180);
+    }
+
+    function cancelMask() {
+      clearTimeout(mask.timer); mask.revision++; mask.queued = false;
+      if (mask.busy) {
+        state.cancelBake = true; state.workerPool?.dispose(); state.workerPool = null;
+      }
+      mask.worker?.terminate(); mask.worker = null; mask.sentVersion = -1;
+      mask.pending?.reject(new Error('Mask cancelled.')); mask.pending = null;
+      document.getElementById('maskStatus').textContent = 'Mask cancelled.';
+    }
+
+    function maskWorkerRequest(job) {
+      if (!mask.worker) {
+        const source = `${[maskKernel, maskSmooth, maskChannel, sampleMaskImage, rasterTriangleUV, edge2D, buildPaddingSources, noise2, hash2, fract, lerp, clamp01].map(f => f.toString()).join('\n')}
+          const cache={};self.onmessage=({data})=>{try{const result=maskKernel(data,cache);postMessage(result,[result.values.buffer,result.pixels.buffer]);}catch(e){postMessage({error:e.message});}};`;
+        const url = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
+        mask.worker = new Worker(url); URL.revokeObjectURL(url);
+        mask.sentVersion = -1;
+        mask.worker.onmessage = ({ data }) => {
+          const pending = mask.pending; mask.pending = null;
+          if (data.error) pending?.reject(new Error(data.error)); else pending?.resolve(data);
+        };
+        mask.worker.onerror = event => {
+          mask.pending?.reject(new Error(event.message || 'Mask worker failed.')); mask.pending = null;
+          mask.worker?.terminate(); mask.worker = null; mask.sentVersion = -1;
+        };
+      }
+      if (mask.sentVersion !== mask.sourceVersion) {
+        job.fields = mask.fields; job.packed = prepareBakeGeometry(job.target); mask.sentVersion = mask.sourceVersion;
+        job.triangleIslands = getUVIslandData(job.target, triangleRange(job.target)).triangleIslands;
+      }
+      delete job.target;
+      return new Promise((resolve, reject) => { mask.pending = { resolve, reject }; mask.worker.postMessage(job); });
+    }
+
+    async function runMask({ full = false, exportType = null } = {}) {
+      clearTimeout(mask.timer);
+      if (mask.busy || state.isBaking) { mask.queued = true; return null; }
+      const target = state.targets.find(t => t.key === document.getElementById('maskTarget').value);
+      if (!target || !mask.layers.length) return null;
+      const revision = mask.revision;
+      const settings = { ...readSettings(), padding: 0 };
+      if (!full) settings.resolution = Math.min(256, settings.resolution);
+      const padding = readSettings().padding;
+      const layers = mask.layers.filter(l => l.enabled).map(l => ({ ...l }));
+      const threshold = Math.max(0, Math.min(0.99, +document.getElementById('maskThreshold').value || 0));
+      const smooth = Math.max(0, Math.min(8, Math.round(+document.getElementById('maskSmooth').value || 0)));
+      const current = () => { checkBakeCancelled(); if (revision !== mask.revision) throw new Error('Mask superseded by newer settings.'); };
+      mask.busy = true; mask.queued = false; state.cancelBake = false;
+      els.fileInput.disabled = true; els.bakeBtn.disabled = true; updateMaskButtons();
+      const started = performance.now(), beforeBakes = mask.sourceBakes;
+      document.getElementById('maskStatus').textContent = 'Preparing mask sources…';
+      try {
+        if (layers.some(l => l.source === 'image' && !l.image)) throw new Error('Choose an image for each enabled image layer.');
+        const cacheKey = JSON.stringify([target.key, settings, document.getElementById('bakeBackend').value]);
+        if (mask.cacheKey !== cacheKey) { mask.cacheKey = cacheKey; mask.fields = {}; mask.sourceVersion++; }
+        const groups = new Map();
+        const request = (scope, map) => { if (!groups.has(scope)) groups.set(scope, new Set()); groups.get(scope).add(map); };
+        if (!mask.fields.domain) { request('all', 'uvmask'); request('all', 'uvisland'); }
+        for (const layer of layers) if (MAPS.some(m => m.key === layer.source)) {
+          const needs = rayRequirements([layer.source]);
+          const scope = needs.occlusion || needs.leaking ? (layer.occlusion === 'inherit' ? settings.occlusionSource : layer.occlusion) : 'all';
+          layer.field = `${scope}:${layer.source}`;
+          if (!mask.fields[layer.field]) request(scope, layer.source);
+        }
+        for (const [scope, maps] of groups) {
+          current();
+          const result = await bakeAccelerated(target, [...maps], { ...settings, occlusionSource: scope }, 'Mask · ');
+          current(); mask.sourceBakes++;
+          for (const [key, map] of result.maps) {
+            const pixels = map.canvas.getContext('2d').getImageData(0, 0, settings.resolution, settings.resolution).data;
+            mask.fields[`${scope}:${key}`] = pixels;
+            if (key === 'uvmask' && scope === 'all') mask.fields.domain = pixels;
+            if (key === 'uvisland' && scope === 'all') mask.fields.islands = pixels;
+          }
+          mask.sourceVersion++;
+        }
+        current(); document.getElementById('maskStatus').textContent = 'Composing layers…';
+        const output = await maskWorkerRequest({ target, resolution: settings.resolution, flipV: settings.flipV, layers, threshold, smooth, padding, diag: state.boundsDiag });
+        current();
+        const canvas = document.createElement('canvas'); canvas.width = canvas.height = settings.resolution;
+        canvas.getContext('2d').putImageData(new ImageData(output.pixels, settings.resolution, settings.resolution), 0, 0);
+        mask.result = { ...output, canvas, target, settings: { ...settings, padding }, layers: mask.layers.map(l => ({ ...l })), threshold, smooth, revision };
+        const display = document.getElementById('maskCanvas'); display.width = display.height = settings.resolution;
+        display.getContext('2d').drawImage(canvas, 0, 0); display.hidden = false;
+        mask.composites.set(target.key, { target, settings: mask.result.settings, maps: new Map([['composite', { canvas, key: 'composite', label: 'Layer Composite', resolution: settings.resolution }]]) });
+        updatePreviewControls(target.key, 'composite'); applyScenePreviewFromControls();
+        mask.runs++;
+        document.getElementById('maskStatus').textContent = `${full ? 'Full resolution' : 'Live preview'} · ${settings.resolution}² · ${layers.length} active layers · ${Math.round(performance.now() - started)} ms · ${mask.sourceBakes === beforeBakes ? 'cached sources reused' : 'sources updated'}`;
+        if (exportType === 'png') downloadCanvas(canvas, `${safeFileName(state.modelFileName)}_${target.safeName}_composite.png`);
+        if (exportType === 'json') downloadBlob(new Blob([JSON.stringify(buildVertexWeights(mask.result), null, 2)], { type: 'application/json' }), `${safeFileName(state.modelFileName)}_${target.safeName}_weights.json`);
+        return mask.result;
+      } catch (error) {
+        document.getElementById('maskStatus').textContent = error.message;
+        return null;
+      } finally {
+        mask.busy = false; state.cancelBake = false;
+        els.fileInput.disabled = false; els.bakeBtn.disabled = !state.targets.length;
+        updateMaskButtons();
+        if (mask.queued) scheduleMaskUpdate(false);
+      }
+    }
+
+    function maskChannel(data, offset, channel) {
+      if (channel === 'r') return data[offset] / 255;
+      if (channel === 'g') return data[offset + 1] / 255;
+      if (channel === 'b') return data[offset + 2] / 255;
+      if (channel === 'a') return data[offset + 3] / 255;
+      return (data[offset] * 0.2126 + data[offset + 1] * 0.7152 + data[offset + 2] * 0.0722) / 255;
+    }
+
+    function sampleMaskImage(image, u, v, channel) {
+      const x = fract(u) * image.width - 0.5, y = fract(v) * image.height - 0.5;
+      const x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;
+      const at = (px, py) => maskChannel(image.pixels, (((py % image.height + image.height) % image.height) * image.width + (px % image.width + image.width) % image.width) * 4, channel);
+      return lerp(lerp(at(x0, y0), at(x0 + 1, y0), fx), lerp(at(x0, y0 + 1), at(x0 + 1, y0 + 1), fx), fy);
+    }
+
+    function maskSmooth(input, coverage, islands, res, passes) {
+      let a = input;
+      for (let pass = 0; pass < passes; pass++) {
+        const b = new Float32Array(a.length);
+        for (let y = 0; y < res; y++) for (let x = 0; x < res; x++) {
+          const i = y * res + x; if (!coverage[i]) continue;
+          let total = a[i] * 2, weight = 2;
+          for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+            if (!dx && !dy) continue;
+            const nx = x + dx, ny = y + dy, j = ny * res + nx;
+            if (nx < 0 || nx >= res || ny < 0 || ny >= res || !coverage[j] || islands[j] !== islands[i]) continue;
+            total += a[j]; weight++;
+          }
+          b[i] = total / weight;
+        }
+        a = b;
+      }
+      return a;
+    }
+
+    function maskKernel(job, cache = {}) {
+      if (job.fields) { cache.fields = job.fields; cache.packed = job.packed; cache.triangleIslands = job.triangleIslands; cache.positions = null; cache.labels = null; }
+      const fields = cache.fields, res = job.resolution, count = res * res;
+      const coverage = new Uint8Array(count), islands = new Uint32Array(count);
+      for (let i = 0; i < count; i++) {
+        coverage[i] = fields.domain[i * 4 + 3] ? 1 : 0;
+        islands[i] = fields.islands[i * 4] + (fields.islands[i * 4 + 1] << 8) + (fields.islands[i * 4 + 2] << 16);
+      }
+      if (cache.triangleIslands) {
+        if (!cache.labels) {
+          cache.labels = new Uint32Array(count);
+          const p = cache.packed;
+          for (let t = 0; t < p.length; t += 48) {
+            rasterTriangleUV(res, { x: p[t + 14], y: p[t + 15] }, { x: p[t + 30], y: p[t + 31] }, { x: p[t + 46], y: p[t + 47] }, job.flipV,
+              (x, y) => { cache.labels[y * res + x] = cache.triangleIslands[t / 48] + 1; });
+          }
+        }
+        islands.set(cache.labels);
+      }
+      if (job.layers.some(l => !l.field && l.mapping !== 'uv') && !cache.positions) {
+        const p = cache.packed, positions = new Float32Array(count * 3);
+        for (let t = 0; t < p.length; t += 48) {
+          rasterTriangleUV(res, { x: p[t + 14], y: p[t + 15] }, { x: p[t + 30], y: p[t + 31] }, { x: p[t + 46], y: p[t + 47] }, job.flipV,
+            (x, y, a, b, c) => { const o = (y * res + x) * 3; for (let k = 0; k < 3; k++) positions[o + k] = p[t + k] * a + p[t + 16 + k] * b + p[t + 32 + k] * c; });
+        }
+        cache.positions = positions;
+      }
+      let out = new Float32Array(count);
+      const threshold = (v, t) => t > 0 ? clamp01((v - t) / Math.max(1e-8, 1 - t)) : clamp01(v);
+      for (const layer of job.layers) {
+        let values = new Float32Array(count);
+        const field = layer.field ? fields[layer.field] : null;
+        for (let i = 0; i < count; i++) {
+          if (!coverage[i]) continue;
+          let v;
+          if (field) v = maskChannel(field, i * 4, layer.channel);
+          else {
+            let u = (i % res + 0.5) / (res - 1), w = (Math.floor(i / res) + 0.5) / (res - 1);
+            if (job.flipV) w = 1 - w;
+            if (layer.mapping !== 'uv') {
+              const p = cache.positions, o = i * 3, axes = layer.mapping === 'xz' ? [0, 2] : layer.mapping === 'xy' ? [0, 1] : [2, 1];
+              u = p[o + axes[0]] / Math.max(1e-6, job.diag); w = p[o + axes[1]] / Math.max(1e-6, job.diag);
+            }
+            u = u * layer.scale + layer.offsetU; w = w * layer.scale + layer.offsetV;
+            if (layer.source === 'image') v = sampleMaskImage(layer.image, u, w, layer.channel);
+            else if (layer.source === 'checker') v = ((Math.floor(u * 8) + Math.floor(w * 8)) & 1) ? 1 : 0;
+            else if (layer.source === 'waves') v = 0.5 + 0.5 * Math.sin((u + w) * Math.PI * 2);
+            else v = 0.62 * noise2(u * 6, w * 6) + 0.28 * noise2(u * 12.6, w * 12.6) + 0.10 * noise2(u * 25.8, w * 25.8);
+            v = clamp01((v - 0.5) * layer.contrast + 0.5);
+          }
+          values[i] = v;
+        }
+        if (layer.smooth) values = maskSmooth(values, coverage, islands, res, layer.smooth);
+        for (let i = 0; i < count; i++) if (coverage[i]) {
+          const v = clamp01(threshold(layer.invert ? 1 - values[i] : values[i], layer.threshold) * layer.strength);
+          if (layer.blend === 'add') out[i] = clamp01(out[i] + v);
+          else if (layer.blend === 'subtract') out[i] = clamp01(out[i] - v);
+          else out[i] = Math.max(out[i], v);
+        }
+      }
+      if (job.smooth) out = maskSmooth(out, coverage, islands, res, job.smooth);
+      for (let i = 0; i < count; i++) if (coverage[i]) out[i] = threshold(out[i], job.threshold);
+      const sources = buildPaddingSources(coverage, res, job.padding);
+      const pixels = new Uint8ClampedArray(count * 4);
+      for (let i = 0; i < count; i++) if (sources[i] >= 0) {
+        const v = out[sources[i]], byte = Math.round(v * 255);
+        pixels.set([byte, byte, byte, 255], i * 4);
+        if (!coverage[i]) out[i] = v;
+      }
+      return { values: out, pixels };
+    }
+
+    function buildVertexWeights(result) {
+      const { target, settings, values, pixels } = result, g = target.mesh.geometry, range = triangleRange(target), used = new Set();
+      for (let i = range.start; i < range.start + range.count; i++) used.add(getVertexIndex(g.index, i));
+      const res = settings.resolution;
+      const sample = (u, v) => {
+        if (u < 0 || u > 1 || v < 0 || v > 1) return 0;
+        const x = u * (res - 1) - 0.5, y = (settings.flipV ? 1 - v : v) * (res - 1) - 0.5;
+        const x0 = Math.floor(x), y0 = Math.floor(y); let total = 0, weight = 0;
+        for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) {
+          const px = Math.max(0, Math.min(res - 1, x0 + dx)), py = Math.max(0, Math.min(res - 1, y0 + dy)), i = py * res + px;
+          if (!pixels[i * 4 + 3]) continue;
+          const w = (dx ? x - x0 : 1 - (x - x0)) * (dy ? y - y0 : 1 - (y - y0));
+          total += values[i] * w; weight += w;
+        }
+        return weight > 0 ? clamp01(total / weight) : 0;
+      };
+      const p = new THREE.Vector3();
+      const weights = [...used].sort((a, b) => a - b).map(index => {
+        p.fromBufferAttribute(g.attributes.position, index).applyMatrix4(target.mesh.matrixWorld);
+        const uv = [g.attributes.uv.getX(index), g.attributes.uv.getY(index)];
+        return { index, position: p.toArray(), uv, weight: sample(...uv) };
+      });
+      return { version: 1, source: state.modelFileName, target: target.displayName, mesh: target.mesh.name, materialIndex: target.materialIndex,
+        vertexCount: weights.length, geometryVertexCount: g.attributes.position.count, positionSpace: 'world',
+        sampling: 'Bilinear sampling of the final UV mask; vertices sharing UVs share values. Uncovered samples are zero.',
+        resolution: res, settings: result.settings, globalThreshold: result.threshold, globalSmooth: result.smooth,
+        layers: result.layers.map(({ image, imageRequest, ...layer }) => ({ ...layer, image: image ? { name: image.name, width: image.width, height: image.height } : null })), weights };
+    }
+
+    class GPUBaker {
+      constructor() {
+        this.renderer = new THREE.WebGLRenderer({ canvas: document.createElement('canvas'), antialias: false, alpha: true });
+        const gl = this.renderer.getContext();
+        if (!this.renderer.capabilities.isWebGL2 || !gl.getExtension('EXT_color_buffer_float') || gl.getParameter(gl.MAX_DRAW_BUFFERS) < 4) {
+          this.renderer.dispose();
+          throw new Error('WebGL2 with four float render attachments is required');
+        }
+        this.renderer.setClearColor(0, 0);
+        this.renderer.autoClear = false;
+        this.renderer.debug.onShaderError = (gl, program, vertex, fragment) => {
+          throw new Error(`GPU shader: ${gl.getShaderInfoLog(vertex)} ${gl.getShaderInfoLog(fragment)} ${gl.getProgramInfoLog(program)}`);
+        };
+        this.bvh = new MeshBVHUniformStruct();
+        this.bvh.updateFrom(state.bvhGeometry.boundsTree);
+        this.occlusionBVH = this.bvh;
+        this.occluder = state.bvhGeometry;
+        this.scene = new THREE.Scene();
+        this.camera = new THREE.Camera();
+        this.quadGeometry = new THREE.BufferGeometry();
+        this.quadGeometry.setAttribute('position', new THREE.Float32BufferAttribute([-1, -1, 0, 3, -1, 0, -1, 3, 0], 3));
+        this.mesh = new THREE.Mesh(this.quadGeometry, null);
+        this.mesh.frustumCulled = false;
+        this.scene.add(this.mesh);
+        this.materials = new Map();
+        this.surfaceKey = ''; this.rawKey = ''; this.paddingKey = '';
+        this.targets = new Set();
+      }
+      setOccluder(geometry) {
+        if (this.occluder === geometry) return;
+        if (this.occlusionBVH !== this.bvh) this.occlusionBVH.dispose();
+        this.occlusionBVH = this.bvh;
+        if (geometry && geometry !== state.bvhGeometry) {
+          this.occlusionBVH = new MeshBVHUniformStruct(); this.occlusionBVH.updateFrom(geometry.boundsTree);
+        }
+        this.occluder = geometry; this.rawKey = '';
+      }
+      target(res, count = 1, type = THREE.FloatType) {
+        if (res > this.renderer.capabilities.maxTextureSize) throw new Error('Texture exceeds GPU size limit');
+        const options = { type, format: THREE.RGBAFormat, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: false, stencilBuffer: false, generateMipmaps: false };
+        const rt = count > 1 ? new THREE.WebGLMultipleRenderTargets(res, res, count, options) : new THREE.WebGLRenderTarget(res, res, options);
+        this.targets.add(rt);
+        this.renderer.setRenderTarget(rt);
+        const gl = this.renderer.getContext();
+        if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) throw new Error('GPU float framebuffer unavailable');
+        this.renderer.clear();
+        return rt;
+      }
+      drop(target) { if (target) { target.dispose(); this.targets.delete(target); } }
+      material(name, fragment, uniforms, vertex = 'in vec3 position; void main(){gl_Position=vec4(position,1.0);}') {
+        if (!this.materials.has(name)) this.materials.set(name, new THREE.RawShaderMaterial({
+          glslVersion: THREE.GLSL3, vertexShader: `precision highp float; precision highp int; ${vertex}`,
+          fragmentShader: `precision highp float; precision highp int; precision highp sampler2D; precision highp usampler2D; precision highp isampler2D; ${fragment}`,
+          depthTest: false, depthWrite: false, side: THREE.DoubleSide, blending: THREE.NoBlending, toneMapped: false
+        }));
+        const material = this.materials.get(name);
+        // Keep uniform objects stable; Three.js caches their references.
+        for (const [key, value] of Object.entries(uniforms)) {
+          if (material.uniforms[key]) material.uniforms[key].value = value; else material.uniforms[key] = { value };
+        }
+        return material;
+      }
+      draw(target, material, geometry = this.quadGeometry, tile = null) {
+        this.renderer.setRenderTarget(target);
+        this.renderer.setScissorTest(!!tile);
+        if (tile) this.renderer.setScissor(...tile);
+        this.mesh.material = material; this.mesh.geometry = geometry;
+        this.renderer.render(this.scene, this.camera);
+        this.renderer.setScissorTest(false);
+        const gl = this.renderer.getContext();
+        if (gl.isContextLost()) throw new Error('GPU context lost');
+        const error = gl.getError();
+        if (error !== gl.NO_ERROR) throw new Error(`GPU operation failed (${error})`);
+      }
+      async fence() {
+        const gl = this.renderer.getContext(), sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+        if (!sync) throw new Error('GPU fence unavailable');
+        gl.flush();
+        const started = performance.now();
+        try {
+          for (;;) {
+            checkBakeCancelled();
+            if (gl.isContextLost()) throw new Error('GPU context lost');
+            const status = gl.clientWaitSync(sync, 0, 0);
+            if (status === gl.WAIT_FAILED) throw new Error('GPU synchronization failed');
+            if (status !== gl.TIMEOUT_EXPIRED) return;
+            if (performance.now() - started > 30000) throw new Error('GPU tile timed out');
+            await new Promise(resolve => setTimeout(resolve, 4));
+          }
+        } finally { gl.deleteSync(sync); }
+      }
+      async bake(key, packed, maps, s, prefix) {
+        const res = s.resolution, surfaceKey = `${key}:${res}:${s.flipV}`;
+        const surfaceCached = this.surfaceKey === surfaceKey;
+        if (!surfaceCached) {
+          for (const rt of [...this.targets]) this.drop(rt);
+          this.surfaceGeometry?.dispose();
+          this.surfaceKey = ''; this.rawKey = ''; this.paddingKey = ''; this.borderKey = '';
+          this.surface = this.target(res, 4);
+          const geometry = new THREE.BufferGeometry(), buffer = new THREE.InterleavedBuffer(packed, 16);
+          for (const [name, size, offset] of [['position', 3, 0], ['normal', 3, 3], ['color', 4, 6], ['curvature', 1, 10], ['island', 3, 11], ['uv', 2, 14]]) {
+            geometry.setAttribute(name, new THREE.InterleavedBufferAttribute(buffer, size, offset));
+          }
+          this.surfaceGeometry = geometry;
+          const vertex = `in vec3 position, normal, island; in vec4 color; in float curvature; in vec2 uv;
+            uniform float resolution; uniform bool flipV;
+            out vec3 vPosition, vNormal, vIsland; out vec4 vColor; out float vCurvature;
+            void main(){
+              vec2 xy=vec2(uv.x,flipV?1.0-uv.y:uv.y)*(resolution-1.0)/resolution;
+              gl_Position=vec4(xy*2.0-1.0,0,1);
+              vPosition=position;vNormal=normal;vIsland=island;vColor=color;vCurvature=curvature;
+            }`;
+          this.draw(this.surface, this.material('surface', `
+            in vec3 vPosition,vNormal,vIsland;in vec4 vColor;in float vCurvature;
+            layout(location=0) out vec4 p;layout(location=1) out vec4 n;
+            layout(location=2) out vec4 c;layout(location=3) out vec4 island;
+            void main(){p=vec4(vPosition,1);n=vec4(normalize(vNormal),vCurvature);c=vColor;island=vec4(vIsland,1);}`,
+            { resolution: res, flipV: s.flipV }, vertex), geometry);
+          await this.fence();
+          this.surfaceKey = surfaceKey;
+        }
+        const needs = rayRequirements(maps), rawKey = rayCacheKey(s, needs);
+        const raysCached = this.rawKey === rawKey;
+        if (!raysCached) {
+          this.drop(this.raw); this.raw = this.target(res, 2); this.rawKey = '';
+          const uniforms = { positions: this.surface.texture[0], normals: this.surface.texture[1], bvh: this.occlusionBVH, fullBVH: this.bvh, hasOccluder: !!this.occluder,
+            samples: s.samples, bias: s.bias, aoRadius: s.aoRadius, cavityRadius: s.cavityRadius, bentRadius: s.bentRadius,
+            thicknessMax: s.thicknessMax, leakDistance: s.leakDistance, gravity: s.gravity,
+            useOcclusion: needs.occlusion, useThickness: needs.thickness, useLeaking: needs.leaking };
+          // The bundled BVH traversal normally starts at infinity. Seeding its
+          // nearest distance with our radius prunes nodes outside the bake ray.
+          const intersection = shaderIntersectFunction.replace('float triangleDistance = INFINITY;', 'float triangleDistance = dist;');
+          const material = this.material('rays', `
+            #define TRI_INTERSECT_EPSILON 0.0
+            ${shaderStructs}
+            ${intersection}
+            uniform BVH bvh,fullBVH;uniform bool hasOccluder;
+            uniform sampler2D positions,normals;
+            uniform int samples;
+            uniform float bias,aoRadius,cavityRadius,bentRadius,thicknessMax,leakDistance;
+            uniform vec3 gravity;uniform bool useOcclusion,useThickness,useLeaking;
+            layout(location=0) out vec4 occlusion;layout(location=1) out vec4 bent;
+            float trace(vec3 p,vec3 d,float farDistance,bool fullScene){
+              if(!fullScene&&!hasOccluder)return farDistance;
+              uvec4 indices=uvec4(0);vec3 fn=vec3(0),bc=vec3(0);float side=0.0,dist=farDistance;
+              bool hit=false;
+              if(fullScene)hit=bvhIntersectFirstHit(fullBVH,p,d,indices,fn,bc,side,dist);
+              else hit=bvhIntersectFirstHit(bvh,p,d,indices,fn,bc,side,dist);
+              return hit?max(0.0,dist):farDistance;
+            }
+            void main(){
+              ivec2 px=ivec2(gl_FragCoord.xy);vec4 pos=texelFetch(positions,px,0);
+              if(pos.a==0.0){occlusion=vec4(0);bent=vec4(0);return;}
+              vec3 p=pos.xyz,n=normalize(texelFetch(normals,px,0).xyz),bn=n;
+              float ao=0.0,cavity=0.0,thickness=1.0,overhead=0.0;
+              if(useOcclusion){
+                vec3 t=normalize(cross(abs(n.y)<0.98?vec3(0,1,0):vec3(1,0,0),n)),b=normalize(cross(n,t));
+                vec3 total=vec3(0);float farDistance=max(aoRadius,max(cavityRadius,bentRadius));
+                for(int i=0;i<128;i++){
+                  if(i>=samples)break;
+                  float u=(float(i)+0.5)/float(samples),z=sqrt(1.0-u*0.88),r=sqrt(max(0.0,1.0-z*z));
+                  float angle=float(i)*2.399963229728653;
+                  vec3 d=normalize(t*(cos(angle)*r)+b*(sin(angle)*r)+n*z);
+                  float distance=trace(p+n*bias,d,farDistance,false);
+                  ao+=max(0.0,1.0-distance/aoRadius);cavity+=max(0.0,1.0-distance/cavityRadius);
+                  total+=d*clamp(distance/bentRadius,0.0,1.0)*(0.35+0.65*z);
+                }
+                ao/=float(samples);cavity/=float(samples);
+                bn=length(total)>1e-8?normalize(total):n;
+              }
+              if(useThickness)thickness=clamp(trace(p-n*bias*2.0,-n,thicknessMax,true)/thicknessMax,0.0,1.0);
+              if(useLeaking)overhead=1.0-clamp(trace(p-gravity*bias*2.0,-gravity,leakDistance,false)/leakDistance,0.0,1.0);
+              occlusion=vec4(ao,cavity,thickness,overhead);bent=vec4(bn,1);
+            }`, uniforms);
+          const tile = 64, total = Math.ceil(res / tile) ** 2; let done = 0;
+          for (let y = 0; y < res; y += tile) for (let x = 0; x < res; x += tile) {
+            checkBakeCancelled();
+            this.draw(this.raw, material, this.quadGeometry, [x, y, Math.min(tile, res - x), Math.min(tile, res - y)]);
+            // Bound queued work so cancellation and the preview stay responsive.
+            if (++done % 4 === 0 || done === total) {
+              await this.fence();
+              setProgress(`${prefix}GPU rays · ${done}/${total} tiles`, done / total * 0.75);
+              await yieldToBrowser();
+            }
+          }
+          this.rawKey = rawKey;
+        }
+        await this.preparePadding(res, s.padding);
+        if (maps.includes('uvborder')) await this.prepareBorder(res, s.uvBorderWidth);
+        await this.prepareNoise(s, maps);
+        const uniforms = { positions: this.surface.texture[0], normals: this.surface.texture[1], colors: this.surface.texture[2], islands: this.surface.texture[3],
+          raw: this.raw.texture[0], bent: this.raw.texture[1], sources: this.padding.texture,
+          noiseAtlas: this.noiseAtlas, noiseRegions: this.noiseRegions, border: maps.includes('uvborder') ? this.border.texture : this.surface.texture[0],
+          boundsMin: state.bounds.min, boundsSize: state.boundsSize, diag: state.boundsDiag,
+          upAxis: s.upAxis, gravity: s.gravity, resolution: res, flipV: s.flipV, depthAxis: 'XYZ'.indexOf(s.depthAxisName), borderWidth: s.uvBorderWidth,
+          aoStrength: s.aoStrength, cavityStrength: s.cavityStrength, curvatureStrength: s.curvatureStrength, edgeWearStrength: s.edgeWearStrength,
+          dustStrength: s.dustStrength, dustCos: s.dustCos, transPower: s.transPower, dripFreq: s.dripFreq, leakStrength: s.leakStrength, mapId: 0 };
+        const material = this.material('compose', gpuComposeShader(), uniforms);
+        const output = this.target(res, 1, THREE.UnsignedByteType), images = {};
+        try {
+          for (let i = 0; i < maps.length; i++) {
+            checkBakeCancelled();
+            material.uniforms.mapId.value = MAPS.findIndex(m => m.key === maps[i]);
+            this.draw(output, material);
+            await this.fence();
+            const pixels = new Uint8Array(res * res * 4);
+            // UV raster Y was deliberately mapped to PNG row order. No flip here.
+            this.renderer.readRenderTargetPixels(output, 0, 0, res, res, pixels);
+            images[maps[i]] = pixels;
+            setProgress(`${prefix}GPU maps · ${i + 1}/${maps.length}`, 0.8 + 0.2 * (i + 1) / maps.length);
+            await yieldToBrowser();
+          }
+        } finally { this.drop(output); }
+        return { images, stats: { backend: 'WebGL2 GPU', surfaceCached, raysCached } };
+      }
+      async preparePadding(res, iterations) {
+        if (this.paddingKey === `${iterations}`) return;
+        this.drop(this.padding);
+        let a = this.target(res), b = this.target(res);
+        const init = this.material('paddingInit', `uniform sampler2D positions;out vec4 result;
+          void main(){ivec2 p=ivec2(gl_FragCoord.xy);result=vec4(vec2(p),0,texelFetch(positions,p,0).a);}`, { positions: this.surface.texture[0] });
+        this.draw(a, init);
+        const step = this.material('paddingStep', `uniform sampler2D sources;out vec4 result;
+          const ivec2 offsets[8]=ivec2[8](ivec2(0,-1),ivec2(-1,0),ivec2(1,0),ivec2(0,1),ivec2(-1,-1),ivec2(1,-1),ivec2(-1,1),ivec2(1,1));
+          void main(){ivec2 p=ivec2(gl_FragCoord.xy),size=textureSize(sources,0);result=texelFetch(sources,p,0);
+            if(result.a>0.0)return;
+            for(int i=0;i<8;i++){ivec2 q=p+offsets[i];if(any(lessThan(q,ivec2(0)))||any(greaterThanEqual(q,size)))continue;
+              vec4 v=texelFetch(sources,q,0);if(v.a>0.0){result=v;return;}}
+          }`, { sources: a.texture });
+        for (let i = 0; i < iterations; i++) {
+          checkBakeCancelled(); step.uniforms.sources.value = a.texture; this.draw(b, step); [a, b] = [b, a];
+          if (i % 4 === 3) { await this.fence(); await yieldToBrowser(); }
+        }
+        this.drop(b); this.padding = a; this.paddingKey = `${iterations}`;
+      }
+      async prepareNoise(s, maps) {
+        const enabled = maps.filter(k => ['edgewear', 'dust', 'leaking'].includes(k)).sort();
+        const key = JSON.stringify([enabled, s.upAxis.toArray(), s.gravity.toArray(), s.dripFreq]);
+        if (this.noiseKey === key) return;
+        // CPU and GPU sin() need not agree. Store the original double-precision
+        // lattice values, then interpolate them on the GPU with the same FBM.
+        // Pack each octave separately to avoid allocating gaps for translated models.
+        const corners = [];
+        for (const x of [state.bounds.min.x, state.bounds.max.x]) for (const y of [state.bounds.min.y, state.bounds.max.y]) for (const z of [state.bounds.min.z, state.bounds.max.z]) corners.push(new THREE.Vector3(x, y, z));
+        const regions = [], uniforms = Array.from({ length: 20 }, () => new THREE.Vector4());
+        const invDiag = 1 / Math.max(1e-6, state.boundsDiag);
+        const add = (base, transform) => {
+          const points = corners.map(transform);
+          for (let octave = 0, freq = 1; octave < 4; octave++, freq *= 2.03) {
+            const minX = Math.floor(Math.min(...points.map(p => p[0] * freq))) - 2;
+            const minY = Math.floor(Math.min(...points.map(p => p[1] * freq))) - 2;
+            const maxX = Math.floor(Math.max(...points.map(p => p[0] * freq))) + 2;
+            const maxY = Math.floor(Math.max(...points.map(p => p[1] * freq))) + 2;
+            regions.push({ index: base + octave, minX, minY, width: maxX - minX + 1, height: maxY - minY + 1 });
+          }
+        };
+        if (enabled.includes('edgewear')) add(0, p => { const c = planeCoordsForGravity(p, s.upAxis); return [c.x * 10 * invDiag + 7.1, c.y * 10 * invDiag - 11.3]; });
+        if (enabled.includes('dust')) {
+          add(4, p => { const c = planeCoordsForGravity(p, s.upAxis); return [c.x * 7.5 * invDiag + 2.1, c.y * 7.5 * invDiag - 5.4]; });
+          add(8, p => { const c = planeCoordsForGravity(p, s.upAxis); return [c.x * 7.5 * invDiag * 3.1 - 13, c.y * 7.5 * invDiag * 3.1 + 8.7]; });
+        }
+        if (enabled.includes('leaking')) {
+          const scale = s.dripFreq * invDiag;
+          add(12, p => { const c = planeCoordsForGravity(p, s.gravity); return [c.x * scale * 8 + 21.13, c.y * scale * 8 - 6.91]; });
+          add(16, p => { const c = planeCoordsForGravity(p, s.gravity); return [c.x * scale * 22 - 4.7, -p.dot(s.gravity) * scale * 7 + c.y * 0.037]; });
+        }
+        regions.sort((a, b) => b.height - a.height);
+        const limit = Math.min(8192, this.renderer.capabilities.maxTextureSize);
+        const area = regions.reduce((sum, r) => sum + r.width * r.height, 0);
+        const width = Math.min(limit, Math.max(1, Math.ceil(Math.sqrt(area)), ...regions.map(r => r.width)));
+        let x = 0, y = 0, rowHeight = 0;
+        for (const r of regions) {
+          if (r.width > width) throw new Error('Noise frequency exceeds GPU atlas capacity');
+          if (x + r.width > width) { y += rowHeight; x = 0; rowHeight = 0; }
+          r.x = x; r.y = y; x += r.width; rowHeight = Math.max(rowHeight, r.height);
+          uniforms[r.index].set(r.minX, r.minY, r.x, r.y);
+        }
+        const height = Math.max(1, y + rowHeight);
+        if (height > limit || width * height > 32 * 1024 * 1024) throw new Error('Noise frequency exceeds GPU atlas capacity');
+        const values = new Float32Array(width * height);
+        for (const r of regions) {
+          checkBakeCancelled();
+          for (let y = 0; y < r.height; y++) for (let x = 0; x < r.width; x++) values[(r.y + y) * width + r.x + x] = hash2(r.minX + x, r.minY + y);
+          await yieldToBrowser();
+        }
+        this.noiseAtlas?.dispose();
+        this.noiseAtlas = new THREE.DataTexture(values, width, height, THREE.RedFormat, THREE.FloatType);
+        this.noiseAtlas.needsUpdate = true; this.noiseRegions = uniforms; this.noiseKey = key;
+      }
+      async prepareBorder(res, width) {
+        if (this.borderKey === `${width}`) return;
+        this.drop(this.border);
+        const horizontal = this.target(res, 1, THREE.UnsignedByteType);
+        this.border = this.target(res, 1, THREE.UnsignedByteType);
+        const erosion = this.material('border', `uniform sampler2D coverage;uniform int radius;uniform bool vertical;out vec4 result;
+          void main(){ivec2 p=ivec2(gl_FragCoord.xy),size=textureSize(coverage,0);float inside=1.0;
+            for(int i=-32;i<=32;i++){if(abs(i)>radius)continue;ivec2 q=p+(vertical?ivec2(0,i):ivec2(i,0));
+              if(any(lessThan(q,ivec2(0)))||any(greaterThanEqual(q,size))){inside=0.0;break;}
+              inside=min(inside,texelFetch(coverage,q,0).a);
+            }result=vec4(inside);}`, { coverage: this.surface.texture[0], radius: width, vertical: false });
+        try {
+          this.draw(horizontal, erosion);
+          erosion.uniforms.coverage.value = horizontal.texture;
+          erosion.uniforms.vertical.value = true;
+          this.draw(this.border, erosion);
+          await this.fence(); this.borderKey = `${width}`;
+        } finally { this.drop(horizontal); }
+      }
+      dispose() {
+        for (const rt of this.targets) rt.dispose(); this.targets.clear();
+        this.surfaceGeometry?.dispose(); this.quadGeometry.dispose();
+        for (const m of this.materials.values()) m.dispose();
+        if (this.occlusionBVH !== this.bvh) this.occlusionBVH.dispose();
+        this.noiseAtlas?.dispose(); this.bvh.dispose(); this.renderer.dispose(); this.renderer.forceContextLoss();
+      }
+    }
+
+    function gpuComposeShader() {
+      // Map ids are generated from MAPS so the UI and shader cannot drift.
+      const id = Object.fromEntries(MAPS.map((m, i) => [m.key, i]));
+      return `
+        uniform sampler2D positions,normals,colors,islands,raw,bent,sources,noiseAtlas,border;
+        uniform vec4 noiseRegions[20];
+        uniform vec3 boundsMin,boundsSize,upAxis,gravity;
+        uniform float diag,resolution,aoStrength,cavityStrength,curvatureStrength,edgeWearStrength,dustStrength,dustCos,transPower,dripFreq,leakStrength;
+        uniform int mapId,depthAxis,borderWidth;uniform bool flipV;out vec4 result;
+        float sat(float x){return clamp(x,0.0,1.0);}
+        float hash2(vec2 p,int index){vec4 r=noiseRegions[index];return texelFetch(noiseAtlas,ivec2(p-r.xy+r.zw),0).r;}
+        float noise2(vec2 p,int index){vec2 i=floor(p),f=fract(p),u=f*f*(3.0-2.0*f);
+          return mix(mix(hash2(i,index),hash2(i+vec2(1,0),index),u.x),mix(hash2(i+vec2(0,1),index),hash2(i+vec2(1),index),u.x),u.y);}
+        float fbm(vec2 p,int base){float v=0.0,a=0.5,f=1.0;for(int i=0;i<4;i++){v+=a*noise2(p*f,base+i);f*=2.03;a*=0.5;}return v/0.9375;}
+        vec2 plane(vec3 p,vec3 g){vec3 a=abs(g);if(a.y>=a.x&&a.y>=a.z)return p.xz;if(a.z>=a.x&&a.z>=a.y)return p.xy;return p.zy;}
+        void main(){
+          vec4 source=texelFetch(sources,ivec2(gl_FragCoord.xy),0);if(source.a==0.0){result=vec4(0);return;}
+          ivec2 px=ivec2(source.xy);vec3 p=texelFetch(positions,px,0).xyz;
+          vec4 nk=texelFetch(normals,px,0),r=texelFetch(raw,px,0);vec3 n=nk.xyz;
+          float k=nk.w,cavity=r.y,v=0.0;vec3 rgb=vec3(0);bool isRGB=false;
+          if(mapId==${id.ao})v=1.0-r.x*aoStrength;
+          else if(mapId==${id.cavity})v=1.0-cavity*cavityStrength;
+          else if(mapId==${id.curvature})v=0.5+0.5*clamp(k*curvatureStrength,-1.0,1.0);
+          else if(mapId==${id.convexity})v=k*curvatureStrength;
+          else if(mapId==${id.edgewear}){
+            vec2 coords=plane(p,upAxis);float scale=10.0/max(1e-6,diag);
+            float breakup=0.58+0.42*smoothstep(0.22,0.86,fbm(coords*scale+vec2(7.1,-11.3),0));
+            v=pow(sat(k*edgeWearStrength),0.58)*sat(1.0-cavity*0.92)*breakup*(0.78+0.22*sat(0.5+0.5*dot(n,upAxis)));
+          }
+          else if(mapId==${id.bentnormal}){rgb=texelFetch(bent,px,0).xyz*0.5+0.5;isRGB=true;}
+          else if(mapId==${id.thickness})v=r.z;
+          else if(mapId==${id.translucency})v=pow(sat(1.0-r.z),transPower);
+          else if(mapId==${id.worldnormal}){rgb=n*0.5+0.5;isRGB=true;}
+          else if(mapId==${id.position}){rgb=(p-boundsMin)/max(vec3(1e-8),boundsSize);isRGB=true;}
+          else if(mapId==${id.topbottom})v=(sat(0.5+0.5*dot(n,upAxis))-0.5)*1.15+0.5;
+          else if(mapId==${id.slope})v=smoothstep(0.02,0.98,1.0-abs(dot(n,upAxis)));
+          else if(mapId==${id.axisdepth})v=(p[depthAxis]-boundsMin[depthAxis])/max(1e-8,boundsSize[depthAxis]);
+          else if(mapId==${id.leaking}){
+            vec3 up=-gravity;float nu=dot(n,up),verticality=pow(sat(1.0-abs(nu)),0.55),under=sat(-nu),top=sat(nu);
+            vec2 coords=plane(p,gravity);float scale=dripFreq/max(1e-6,diag);
+            float stripe=pow(smoothstep(0.48,0.90,fbm(coords*scale*8.0+vec2(21.13,-6.91),12)),1.65);
+            float fine=fbm(vec2(coords.x*scale*22.0-4.7,dot(p,up)*scale*7.0+coords.y*0.037),16);
+            float rain=max(r.w,top*0.55),flow=verticality*rain,crevice=cavity*(0.55+under*0.35);
+            float drips=stripe*verticality*(0.45+0.55*rain)*smoothstep(0.25,0.82,fine);
+            v=(flow*0.55+crevice*0.8+drips*0.85+under*cavity*0.25)*leakStrength;
+          }
+          else if(mapId==${id.dust}){
+            float upper=min(1.0,dustCos+max(0.04,(1.0-dustCos)*0.65)),hold=smoothstep(dustCos,upper,dot(n,upAxis));
+            vec2 coords=plane(p,upAxis);float scale=7.5/max(1e-6,diag);
+            float broad=0.70+0.30*fbm(coords*scale+vec2(2.1,-5.4),4);
+            float speckle=smoothstep(0.15,0.88,fbm(coords*scale*3.1+vec2(-13.0,8.7),8));
+            v=hold*(0.72+cavity*0.68)*broad*(0.78+0.22*speckle)*dustStrength;
+          }
+          else if(mapId==${id.uvmask})v=1.0;
+          else if(mapId==${id.uvborder})v=1.0-texelFetch(border,px,0).a;
+          else if(mapId==${id.uvisland}){rgb=texelFetch(islands,px,0).rgb;isRGB=true;}
+          else if(mapId==${id.uvcoord}){vec2 uv=(vec2(px)+0.5)/(resolution-1.0);rgb=vec3(uv.x,flipV?1.0-uv.y:uv.y,0);isRGB=true;}
+          else if(mapId==${id.vertexcolor}){rgb=texelFetch(colors,px,0).rgb;isRGB=true;}
+          else if(mapId==${id.vertexalpha})v=texelFetch(colors,px,0).a;
+          result=vec4(clamp(isRGB?rgb:vec3(v),0.0,1.0),1);
+        }`;
+    }
+
+    // Packed vertices are shared by the GPU and CPU paths. Topology is evaluated
+    // once per target; only texel data depends on output resolution / V convention.
+    function prepareBakeGeometry(target) {
+      if (state.packedCache.has(target.key)) return state.packedCache.get(target.key);
+      const g = target.mesh.geometry, range = triangleRange(target);
+      const curvature = getCurvatureData(target.mesh);
+      const islands = getUVIslandData(target, range);
+      const packed = new Float32Array(range.count * 16);
+      const nm = new THREE.Matrix3().getNormalMatrix(target.mesh.matrixWorld);
+      const p = new THREE.Vector3(), n = new THREE.Vector3(), color = new THREE.Vector4();
+      const face = new THREE.Vector3(), a = new THREE.Vector3(), b = new THREE.Vector3();
+      for (let t = 0; t < range.count; t += 3) {
+        const ids = [0, 1, 2].map(j => getVertexIndex(g.index, range.start + t + j));
+        if (!g.attributes.normal) {
+          p.fromBufferAttribute(g.attributes.position, ids[0]).applyMatrix4(target.mesh.matrixWorld);
+          a.fromBufferAttribute(g.attributes.position, ids[1]).applyMatrix4(target.mesh.matrixWorld).sub(p);
+          b.fromBufferAttribute(g.attributes.position, ids[2]).applyMatrix4(target.mesh.matrixWorld).sub(p);
+          face.crossVectors(a, b).normalize();
+        }
+        for (let j = 0; j < 3; j++) {
+          const id = ids[j], o = (t + j) * 16;
+          p.fromBufferAttribute(g.attributes.position, id).applyMatrix4(target.mesh.matrixWorld);
+          if (g.attributes.normal) n.fromBufferAttribute(g.attributes.normal, id).applyMatrix3(nm).normalize();
+          else n.copy(face);
+          if (g.attributes.color) readVertexColor(g.attributes.color, id, color); else color.set(1, 1, 1, 1);
+          packed.set([p.x, p.y, p.z, n.x, n.y, n.z, color.x, color.y, color.z, color.w,
+            curvature[id], ...islands.colors.subarray(islands.triangleIslands[t / 3] * 3, islands.triangleIslands[t / 3] * 3 + 3),
+            g.attributes.uv.getX(id), g.attributes.uv.getY(id)], o);
+        }
+      }
+      state.packedCache.set(target.key, packed);
+      return packed;
+    }
+
+    function rayRequirements(maps) {
+      return {
+        occlusion: maps.some(k => ['ao', 'cavity', 'bentnormal', 'leaking', 'dust', 'edgewear'].includes(k)),
+        thickness: maps.some(k => ['thickness', 'translucency'].includes(k)),
+        leaking: maps.includes('leaking')
+      };
+    }
+
+    function rayCacheKey(s, needs) {
+      return JSON.stringify([s.samples, s.bias, s.aoRadius, s.cavityRadius, s.bentRadius,
+        s.thicknessMax, s.leakDistance, s.gravity.x, s.gravity.y, s.gravity.z, s.occlusionSource || 'all', needs]);
+    }
+
+    function checkBakeCancelled() {
+      if (state.cancelBake) throw new Error('Bake cancelled.');
+    }
+
+    async function bakeAccelerated(target, maps, settings, prefix = '') {
+      checkBakeCancelled();
+      setProgress(`${prefix}Preparing ${target.displayName}…`, 0);
+      await yieldToBrowser();
+      const started = performance.now();
+      const packed = prepareBakeGeometry(target);
+      const occluder = getOcclusionGeometry(target, settings.occlusionSource);
+      const backend = document.getElementById('bakeBackend').value;
+      let output, fallback = '';
+      if (backend === 'worker') {
+        state.gpuBaker?.dispose(); state.gpuBaker = null;
+      }
+      if (backend !== 'worker') {
+        try {
+          state.gpuBaker ||= new GPUBaker();
+          state.gpuBaker.setOccluder(occluder);
+          state.workerPool?.dispose(); state.workerPool = null;
+          output = await state.gpuBaker.bake(target.key, packed, maps, settings, prefix);
+        } catch (error) {
+          state.gpuBaker?.dispose();
+          state.gpuBaker = null;
+          checkBakeCancelled();
+          if (backend === 'gpu') throw error;
+          fallback = `GPU unavailable (${error.message}). `;
+          document.getElementById('engineStatus').textContent = `${fallback}Using CPU workers.`;
+        }
+      }
+      if (!output) {
+        if (state.workerPool && state.workerPool.occluder !== occluder) { state.workerPool.dispose(); state.workerPool = null; }
+        state.workerPool ||= new BakeWorkerPool(occluder);
+        try { output = await state.workerPool.bake(target.key, packed, maps, settings, prefix); }
+        catch (error) { state.workerPool?.dispose(); state.workerPool = null; throw error; }
+      }
+      checkBakeCancelled();
+      const result = { target, maps: new Map(), settings: { ...settings }, createdAt: new Date() };
+      for (const key of maps) {
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = settings.resolution;
+        canvas.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(output.images[key]), settings.resolution, settings.resolution), 0, 0);
+        result.maps.set(key, { key, label: MAPS.find(m => m.key === key).label, canvas, resolution: settings.resolution });
+      }
+      state.lastBakeStats = { ...output.stats, elapsedMs: performance.now() - started };
+      const needs = rayRequirements(maps);
+      const rayLabel = !needs.occlusion && !needs.thickness && !needs.leaking ? 'no rays needed' : output.stats.raysCached ? 'rays reused' : 'rays computed';
+      document.getElementById('engineStatus').textContent = `${fallback}${output.stats.backend} · ${(state.lastBakeStats.elapsedMs / 1000).toFixed(2)} s · ${output.stats.surfaceCached ? 'surface reused' : 'surface built'} · ${rayLabel}`;
+      return result;
+    }
+
+    // The source index is propagated once, with the same neighbor priority as
+    // the reference dilation. Every output map then gathers from this index.
+    function buildPaddingSources(coverage, res, iterations) {
+      let sources = new Int32Array(coverage.length);
+      for (let i = 0; i < sources.length; i++) sources[i] = coverage[i] ? i : -1;
+      const offsets = [[0, -1], [-1, 0], [1, 0], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]];
+      let next = new Int32Array(sources.length);
+      for (let pass = 0; pass < iterations; pass++) {
+        next.set(sources);
+        for (let y = 0; y < res; y++) for (let x = 0; x < res; x++) {
+          const i = y * res + x;
+          if (sources[i] >= 0) continue;
+          for (const [dx, dy] of offsets) {
+            const nx = x + dx, ny = y + dy;
+            if (nx >= 0 && nx < res && ny >= 0 && ny < res && sources[ny * res + nx] >= 0) {
+              next[i] = sources[ny * res + nx]; break;
+            }
+          }
+        }
+        [sources, next] = [next, sources];
+      }
+      return sources;
+    }
+
+    function cpuWorkerMain() {
+      let surface = null, raw = null, lastSurfaceKey = '', lastRayKey = '';
+      self.onmessage = async ({ data: job }) => {
+        try {
+          if (job.type === 'init') {
+            const makeGeometry = (data, positions) => {
+              if (!data) return null;
+              const g = new THREE.BufferGeometry();
+              g.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+              g.boundsTree = MeshBVH.deserialize(data, g); return g;
+            };
+            state.bvhGeometry = makeGeometry(job.bvh, job.positions);
+            state.fullBVHGeometry = job.fullBVH ? makeGeometry(job.fullBVH, job.fullPositions) : state.bvhGeometry;
+            state.bounds = new THREE.Box3(new THREE.Vector3(...job.min), new THREE.Vector3(...job.max));
+            state.boundsSize = state.bounds.getSize(new THREE.Vector3());
+            state.boundsDiag = job.diag;
+            postMessage({ id: job.id, ready: true });
+            return;
+          }
+          if (job.type === 'finish') {
+            if (job.images.uvborder) buildUVBorderImage({ data: job.images.uvborder }, job.coverage, job.res, job.width);
+            const sources = buildPaddingSources(job.coverage, job.res, job.padding);
+            for (const data of Object.values(job.images)) {
+              // Sources always refer to original covered pixels, never destinations.
+              for (let i = 0; i < sources.length; i++) {
+                if (job.coverage[i] || sources[i] < 0) continue;
+                const src = sources[i] * 4, dst = i * 4;
+                data[dst] = data[src]; data[dst + 1] = data[src + 1];
+                data[dst + 2] = data[src + 2]; data[dst + 3] = data[src + 3];
+              }
+            }
+            postMessage({ id: job.id, images: job.images }, Object.values(job.images).map(a => a.buffer));
+            return;
+          }
+          const s = job.settings;
+          s.upAxis = new THREE.Vector3(s.upAxis.x, s.upAxis.y, s.upAxis.z);
+          s.gravity = new THREE.Vector3(s.gravity.x, s.gravity.y, s.gravity.z);
+          const res = s.resolution, count = (job.end - job.start) * res;
+          const surfaceKey = `${job.key}:${res}:${s.flipV}:${job.start}:${job.end}`;
+          const surfaceCached = surfaceKey === lastSurfaceKey;
+          if (!surfaceCached) {
+            surface = new Float32Array(count * 16);
+            surface.coverage = new Uint8Array(count);
+            const p = job.packed;
+            // Row bands keep large UV triangles cancellable (the host can terminate
+            // a worker immediately) and let each worker retain its own cache.
+            for (let t = 0; t < p.length; t += 48) {
+              const xy = [0, 16, 32].map(o => [p[t + o + 14] * (res - 1), (s.flipV ? 1 - p[t + o + 15] : p[t + o + 15]) * (res - 1)]);
+              const [a, b, c] = xy;
+              const area = edge2D(...a, ...b, ...c);
+              if (Math.abs(area) < 1e-10) continue;
+              const minX = Math.max(0, Math.floor(Math.min(a[0], b[0], c[0]))), maxX = Math.min(res - 1, Math.ceil(Math.max(a[0], b[0], c[0])));
+              const minY = Math.max(job.start, Math.floor(Math.min(a[1], b[1], c[1]))), maxY = Math.min(job.end - 1, Math.ceil(Math.max(a[1], b[1], c[1])));
+              for (let y = minY; y <= maxY; y++) for (let x = minX; x <= maxX; x++) {
+                const w0 = edge2D(...b, ...c, x + 0.5, y + 0.5) / area;
+                const w1 = edge2D(...c, ...a, x + 0.5, y + 0.5) / area, w2 = 1 - w0 - w1;
+                if (Math.min(w0, w1, w2) < -1e-5) continue;
+                const o = ((y - job.start) * res + x) * 16;
+                for (let k = 0; k < 16; k++) surface[o + k] = p[t + k] * w0 + p[t + 16 + k] * w1 + p[t + 32 + k] * w2;
+                tmpN.fromArray(surface, o + 3).normalize().toArray(surface, o + 3);
+                // Coverage is stored separately because transparent vertex alpha is valid.
+                surface.coverage[(y - job.start) * res + x] = 1;
+              }
+            }
+            lastSurfaceKey = surfaceKey; lastRayKey = ''; raw = null;
+          }
+          const needs = rayRequirements(job.maps), key = rayCacheKey(s, needs);
+          const raysCached = lastRayKey === key;
+          if (!raysCached) {
+            raw = new Float32Array(count * 7);
+            const samples = generateHemisphereSamples(s.samples);
+            for (let i = 0; i < count; i++) {
+              if (!surface.coverage[i]) continue;
+              const o = i * 16, r = i * 7;
+              tmpP.fromArray(surface, o); tmpN.fromArray(surface, o + 3);
+              if (needs.occlusion) {
+                const occ = computeOcclusion(tmpP, tmpN, samples, Math.max(s.aoRadius, s.cavityRadius, s.bentRadius), s);
+                raw.set([occ.ao, occ.cavity, occ.bentX, occ.bentY, occ.bentZ], r);
+              }
+              raw[r + 5] = needs.thickness ? computeThickness(tmpP, tmpN, s) : 1;
+              if (needs.leaking) {
+                tmpAxis.copy(s.gravity).negate();
+                tmpRayOrigin.copy(tmpP).addScaledVector(tmpAxis, s.bias * 2);
+                const hit = firstHit(tmpRayOrigin, tmpAxis, s.leakDistance);
+                raw[r + 6] = hit ? 1 - clamp01(hit.distance / s.leakDistance) : 0;
+              }
+              if (i % (res * 8) === 0) postMessage({ id: job.id, progress: i / count });
+            }
+            lastRayKey = key;
+          }
+          const images = Object.fromEntries(job.maps.map(k => [k, new Uint8ClampedArray(count * 4)]));
+          for (let i = 0; i < count; i++) {
+            if (!surface.coverage[i]) continue;
+            const o = i * 16, r = i * 7;
+            tmpP.fromArray(surface, o); tmpN.fromArray(surface, o + 3);
+            for (const map of job.maps) {
+              let value = 0, rgb = null;
+              switch (map) {
+                case 'ao': value = 1 - raw[r] * s.aoStrength; break;
+                case 'cavity': value = 1 - raw[r + 1] * s.cavityStrength; break;
+                case 'curvature': value = 0.5 + 0.5 * Math.max(-1, Math.min(1, surface[o + 10] * s.curvatureStrength)); break;
+                case 'convexity': value = surface[o + 10] * s.curvatureStrength; break;
+                case 'edgewear': value = computeEdgeWear(tmpP, tmpN, surface[o + 10], raw[r + 1], s); break;
+                case 'bentnormal': rgb = [raw[r + 2] * 0.5 + 0.5, raw[r + 3] * 0.5 + 0.5, raw[r + 4] * 0.5 + 0.5]; break;
+                case 'thickness': value = raw[r + 5]; break;
+                case 'translucency': value = Math.pow(clamp01(1 - raw[r + 5]), s.transPower); break;
+                case 'worldnormal': rgb = [tmpN.x * 0.5 + 0.5, tmpN.y * 0.5 + 0.5, tmpN.z * 0.5 + 0.5]; break;
+                case 'position': rgb = [(tmpP.x - state.bounds.min.x) / Math.max(1e-8, state.boundsSize.x), (tmpP.y - state.bounds.min.y) / Math.max(1e-8, state.boundsSize.y), (tmpP.z - state.bounds.min.z) / Math.max(1e-8, state.boundsSize.z)]; break;
+                case 'topbottom': value = smoothContrast(0.5 + 0.5 * tmpN.dot(s.upAxis), 1.15); break;
+                case 'slope': value = smoothstep(0.02, 0.98, 1 - Math.abs(tmpN.dot(s.upAxis))); break;
+                case 'axisdepth': value = computeAxisDepth(tmpP, s.depthAxisName); break;
+                case 'leaking': value = computeLeaking(tmpP, tmpN, raw[r + 1], s, raw[r + 6]); break;
+                case 'dust': value = computeDust(tmpP, tmpN, raw[r + 1], s); break;
+                case 'uvmask': value = 1; break;
+                case 'uvborder': value = 0; break;
+                case 'uvisland': rgb = [surface[o + 11], surface[o + 12], surface[o + 13]]; break;
+                case 'uvcoord': rgb = [surface[o + 14], surface[o + 15], 0]; break;
+                case 'vertexcolor': rgb = [surface[o + 6], surface[o + 7], surface[o + 8]]; break;
+                case 'vertexalpha': value = surface[o + 9]; break;
+              }
+              const image = { data: images[map] };
+              if (rgb) writeRGB(image, i, ...rgb); else writeGray(image, i, value);
+            }
+          }
+          const coverage = surface.coverage.slice();
+          postMessage({ id: job.id, images, coverage, surfaceCached, raysCached }, [...Object.values(images).map(a => a.buffer), coverage.buffer]);
+        } catch (error) { postMessage({ id: job.id, error: error.message }); }
+      };
+    }
+
+    let workerURLPromise;
+    async function bakeWorkerURL() {
+      if (!workerURLPromise) workerURLPromise = (async () => {
+        const imports = JSON.parse(document.querySelector('script[type="importmap"]').textContent).imports;
+        // Classic Blob workers also run from file://. Fetch the pinned UMD builds
+        // in the page and embed them, so the worker needs no module-origin access.
+        const dependencies = await Promise.all([
+          imports.three.replace('three.module.js', 'three.min.js'),
+          imports['three-mesh-bvh'].replace('index.module.js', 'index.umd.cjs')
+        ].map(async url => {
+          const response = await fetch(url);
+          if (!response.ok) throw new Error(`Worker dependency: HTTP ${response.status}`);
+          return response.text();
+        }));
+        const functions = [rayRequirements, rayCacheKey, edge2D, generateHemisphereSamples, computeOcclusion, computeThickness, computeLeaking,
+          computeEdgeWear, computeDust, buildBasis, firstHit, computeAxisDepth, planeCoordsForGravity,
+          writeGray, writeRGB, buildUVBorderImage, buildPaddingSources, smoothContrast, smoothstep, hash2, noise2, fbm2, fract, lerp, clamp01];
+        const source = `${dependencies.join('\n')}\nconst { MeshBVH } = self.MeshBVHLib;
+          const state = {}; const raycaster = new THREE.Raycaster();
+          const tmpP = new THREE.Vector3(), tmpN = new THREE.Vector3(), tmpRayOrigin = new THREE.Vector3(), tmpRayDir = new THREE.Vector3(), tmpTangent = new THREE.Vector3(), tmpBitangent = new THREE.Vector3(), tmpAxis = new THREE.Vector3();
+          ${functions.map(f => f.toString()).join('\n')}
+          (${cpuWorkerMain.toString()})();`;
+        return URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
+      })().catch(error => { workerURLPromise = null; throw error; });
+      return workerURLPromise;
+    }
+
+    class BakeWorkerPool {
+      constructor(occluder = state.bvhGeometry) { this.occluder = occluder; this.workers = []; this.pending = new Map(); this.id = 0; this.disposed = false; }
+      async init() {
+        if (this.workers.length) return;
+        const url = await bakeWorkerURL();
+        if (this.disposed) throw new Error('Bake cancelled.');
+        const serialized = this.occluder ? MeshBVH.serialize(this.occluder.boundsTree) : null;
+        const fullBVH = this.occluder === state.bvhGeometry ? null : MeshBVH.serialize(state.bvhGeometry.boundsTree);
+        const n = Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 2) - 1));
+        const jobs = [];
+        for (let i = 0; i < n; i++) {
+          const worker = new Worker(url);
+          worker.onmessage = ({ data }) => {
+            const request = this.pending.get(data.id);
+            if (!request) return;
+            if (data.progress !== undefined) { request.progress?.(data.progress); return; }
+            this.pending.delete(data.id);
+            clearTimeout(request.timer);
+            if (data.error) request.reject(new Error(data.error)); else request.resolve(data);
+          };
+          worker.onerror = event => this.dispose(new Error(event.message || 'CPU worker failed to load.'));
+          this.workers.push(worker);
+          jobs.push(this.call(worker, { type: 'init', bvh: serialized, positions: this.occluder?.attributes.position.array,
+            fullBVH, fullPositions: fullBVH ? state.bvhGeometry.attributes.position.array : null,
+            min: state.bounds.min.toArray(), max: state.bounds.max.toArray(), diag: state.boundsDiag }));
+        }
+        await Promise.all(jobs);
+      }
+      call(worker, payload, transfer = [], progress) {
+        if (this.disposed) return Promise.reject(new Error('Bake cancelled.'));
+        return new Promise((resolve, reject) => {
+          const id = ++this.id;
+          const timer = payload.type === 'init' ? setTimeout(() => this.dispose(new Error('CPU worker initialization timed out.')), 30000) : null;
+          this.pending.set(id, { resolve, reject, progress, timer });
+          worker.postMessage({ ...payload, id }, transfer);
+        });
+      }
+      async bake(key, packed, maps, settings, prefix) {
+        await this.init(); checkBakeCancelled();
+        const res = settings.resolution, progress = this.workers.map(() => 0);
+        const bands = await Promise.all(this.workers.map((w, i) => this.call(w, {
+          type: 'bake', key, packed, maps, settings,
+          start: Math.floor(i * res / this.workers.length), end: Math.floor((i + 1) * res / this.workers.length)
+        }, [], p => { progress[i] = p; setProgress(`${prefix}CPU workers · tracing`, progress.reduce((a, b) => a + b, 0) / progress.length * 0.8); })));
+        const images = Object.fromEntries(maps.map(k => [k, new Uint8ClampedArray(res * res * 4)]));
+        const coverage = new Uint8Array(res * res);
+        for (let i = 0; i < bands.length; i++) {
+          const offset = Math.floor(i * res / bands.length) * res;
+          coverage.set(bands[i].coverage, offset);
+          for (const key of maps) images[key].set(bands[i].images[key], offset * 4);
+        }
+        setProgress(`${prefix}CPU workers · shared padding`, 0.85);
+        const done = await this.call(this.workers[0], { type: 'finish', images, coverage, res, padding: settings.padding, width: settings.uvBorderWidth },
+          [...Object.values(images).map(a => a.buffer), coverage.buffer]);
+        return { images: done.images, stats: { backend: `CPU (${bands.length} workers)`, surfaceCached: bands.every(b => b.surfaceCached), raysCached: bands.every(b => b.raysCached) } };
+      }
+      dispose(error = new Error('Bake cancelled.')) {
+        this.disposed = true;
+        for (const w of this.workers) w.terminate();
+        for (const p of this.pending.values()) { clearTimeout(p.timer); p.reject(error); }
+        this.pending.clear(); this.workers = [];
+      }
+    }
+
+    function triangleRange(target) {
+      const geom = target.mesh.geometry;
+      if (target.group) {
+        return { start: target.group.start, count: target.group.count };
+      }
+      return { start: 0, count: geom.index ? geom.index.count : geom.getAttribute('position').count };
+    }
+
+    function getVertexIndex(indexAttr, cursor) {
+      return indexAttr ? indexAttr.getX(cursor) : cursor;
+    }
+
+    function readVertexColor(attribute, index, out) {
+      out.set(
+        attribute.getX(index),
+        attribute.itemSize > 1 ? attribute.getY(index) : attribute.getX(index),
+        attribute.itemSize > 2 ? attribute.getZ(index) : attribute.getX(index),
+        attribute.itemSize > 3 ? attribute.getW(index) : 1
+      );
+      return out;
+    }
+
+    function getCurvatureData(mesh) {
+      const cached = state.curvatureCache.get(mesh.uuid);
+      if (cached) return cached;
+
+      const geom = mesh.geometry;
+      const posAttr = geom.getAttribute('position');
+      const normalAttr = geom.getAttribute('normal');
+      const indexAttr = geom.index;
+      const vertexCount = posAttr.count;
+      const worldPositions = new Float32Array(vertexCount * 3);
+      const vertexGroup = new Int32Array(vertexCount);
+      const groups = [];
+      const weldMap = new Map();
+      const weldTolerance = Math.max(1e-8, state.boundsDiag * 1e-6);
+      const invWeld = 1 / weldTolerance;
+      const normalMatrix = new THREE.Matrix3().getNormalMatrix(mesh.matrixWorld);
+
+      for (let i = 0; i < vertexCount; i++) {
+        tmpP.fromBufferAttribute(posAttr, i).applyMatrix4(mesh.matrixWorld);
+        const base = i * 3;
+        worldPositions[base] = tmpP.x;
+        worldPositions[base + 1] = tmpP.y;
+        worldPositions[base + 2] = tmpP.z;
+        const key = `${Math.round(tmpP.x * invWeld)},${Math.round(tmpP.y * invWeld)},${Math.round(tmpP.z * invWeld)}`;
+        let groupIndex = weldMap.get(key);
+        if (groupIndex === undefined) {
+          groupIndex = groups.length;
+          weldMap.set(key, groupIndex);
+          groups.push({
+            px: 0, py: 0, pz: 0, nx: 0, ny: 0, nz: 0, members: 0,
+            sx: 0, sy: 0, sz: 0, edgeLength: 0, neighborCount: 0, raw: 0, value: 0
+          });
+        }
+        vertexGroup[i] = groupIndex;
+        const group = groups[groupIndex];
+        group.px += tmpP.x;
+        group.py += tmpP.y;
+        group.pz += tmpP.z;
+        group.members++;
+        if (normalAttr) {
+          tmpN.fromBufferAttribute(normalAttr, i).applyMatrix3(normalMatrix).normalize();
+          group.nx += tmpN.x;
+          group.ny += tmpN.y;
+          group.nz += tmpN.z;
+        }
+      }
+
+      for (const group of groups) {
+        const inv = 1 / Math.max(1, group.members);
+        group.px *= inv;
+        group.py *= inv;
+        group.pz *= inv;
+      }
+
+      function addCurvatureEdge(aIndex, bIndex) {
+        if (aIndex === bIndex) return;
+        const a = groups[aIndex];
+        const b = groups[bIndex];
+        const dx = b.px - a.px;
+        const dy = b.py - a.py;
+        const dz = b.pz - a.pz;
+        const length = Math.hypot(dx, dy, dz);
+        if (length < 1e-12) return;
+        a.sx += b.px;
+        a.sy += b.py;
+        a.sz += b.pz;
+        a.edgeLength += length;
+        a.neighborCount++;
+        b.sx += a.px;
+        b.sy += a.py;
+        b.sz += a.pz;
+        b.edgeLength += length;
+        b.neighborCount++;
+      }
+
+      const elementCount = indexAttr ? indexAttr.count : vertexCount;
+      for (let cursor = 0; cursor + 2 < elementCount; cursor += 3) {
+        const ia = getVertexIndex(indexAttr, cursor);
+        const ib = getVertexIndex(indexAttr, cursor + 1);
+        const ic = getVertexIndex(indexAttr, cursor + 2);
+        const ga = vertexGroup[ia];
+        const gb = vertexGroup[ib];
+        const gc = vertexGroup[ic];
+        addCurvatureEdge(ga, gb);
+        addCurvatureEdge(gb, gc);
+        addCurvatureEdge(gc, ga);
+
+        if (!normalAttr) {
+          const a = ia * 3;
+          const b = ib * 3;
+          const c = ic * 3;
+          const abx = worldPositions[b] - worldPositions[a];
+          const aby = worldPositions[b + 1] - worldPositions[a + 1];
+          const abz = worldPositions[b + 2] - worldPositions[a + 2];
+          const acx = worldPositions[c] - worldPositions[a];
+          const acy = worldPositions[c + 1] - worldPositions[a + 1];
+          const acz = worldPositions[c + 2] - worldPositions[a + 2];
+          const nx = aby * acz - abz * acy;
+          const ny = abz * acx - abx * acz;
+          const nz = abx * acy - aby * acx;
+          for (const gi of [ga, gb, gc]) {
+            groups[gi].nx += nx;
+            groups[gi].ny += ny;
+            groups[gi].nz += nz;
+          }
+        }
+      }
+
+      const magnitudes = [];
+      for (const group of groups) {
+        const normalLength = Math.hypot(group.nx, group.ny, group.nz);
+        if (normalLength > 1e-12) {
+          group.nx /= normalLength;
+          group.ny /= normalLength;
+          group.nz /= normalLength;
+        } else {
+          group.nx = 0;
+          group.ny = 1;
+          group.nz = 0;
+        }
+        if (group.neighborCount < 2) continue;
+        const inv = 1 / group.neighborCount;
+        const lapX = group.sx * inv - group.px;
+        const lapY = group.sy * inv - group.py;
+        const lapZ = group.sz * inv - group.pz;
+        const averageEdge = Math.max(1e-12, group.edgeLength * inv);
+        group.raw = -(lapX * group.nx + lapY * group.ny + lapZ * group.nz) / averageEdge;
+        const magnitude = Math.abs(group.raw);
+        if (magnitude > 1e-8 && Number.isFinite(magnitude)) magnitudes.push(magnitude);
+      }
+
+      magnitudes.sort((a, b) => a - b);
+      const percentileIndex = Math.min(magnitudes.length - 1, Math.floor(magnitudes.length * 0.90));
+      const scale = magnitudes.length ? Math.max(1e-6, magnitudes[Math.max(0, percentileIndex)]) : 1;
+      for (const group of groups) group.value = Math.max(-1, Math.min(1, group.raw / scale));
+
+      const values = new Float32Array(vertexCount);
+      for (let i = 0; i < vertexCount; i++) values[i] = groups[vertexGroup[i]].value;
+      state.curvatureCache.set(mesh.uuid, values);
+      return values;
+    }
+
+    function getUVIslandData(target, triRange) {
+      const cached = state.uvIslandCache.get(target.key);
+      if (cached) return cached;
+
+      const geom = target.mesh.geometry;
+      const posAttr = geom.getAttribute('position');
+      const uvAttr = geom.getAttribute('uv');
+      const indexAttr = geom.index;
+      const totalTris = Math.floor(triRange.count / 3);
+      const parent = new Int32Array(totalTris);
+      const rank = new Uint8Array(totalTris);
+      for (let i = 0; i < totalTris; i++) parent[i] = i;
+
+      function findRoot(value) {
+        let root = value;
+        while (parent[root] !== root) root = parent[root];
+        while (parent[value] !== value) {
+          const next = parent[value];
+          parent[value] = root;
+          value = next;
+        }
+        return root;
+      }
+
+      function union(a, b) {
+        let ra = findRoot(a);
+        let rb = findRoot(b);
+        if (ra === rb) return;
+        if (rank[ra] < rank[rb]) [ra, rb] = [rb, ra];
+        parent[rb] = ra;
+        if (rank[ra] === rank[rb]) rank[ra]++;
+      }
+
+      const vertexKeys = new Array(posAttr.count);
+      const invPosition = 1 / Math.max(1e-8, state.boundsDiag * 1e-6);
+      const invUV = 1e6;
+      function vertexKey(vertexIndex) {
+        if (vertexKeys[vertexIndex] !== undefined) return vertexKeys[vertexIndex];
+        tmpP.fromBufferAttribute(posAttr, vertexIndex).applyMatrix4(target.mesh.matrixWorld);
+        tmpUV0.fromBufferAttribute(uvAttr, vertexIndex);
+        const key = `${Math.round(tmpUV0.x * invUV)},${Math.round(tmpUV0.y * invUV)}@${Math.round(tmpP.x * invPosition)},${Math.round(tmpP.y * invPosition)},${Math.round(tmpP.z * invPosition)}`;
+        vertexKeys[vertexIndex] = key;
+        return key;
+      }
+
+      const edgeOwner = new Map();
+      function registerEdge(a, b, triangleIndex) {
+        const ka = vertexKey(a);
+        const kb = vertexKey(b);
+        const key = ka < kb ? `${ka}|${kb}` : `${kb}|${ka}`;
+        const previous = edgeOwner.get(key);
+        if (previous === undefined) edgeOwner.set(key, triangleIndex);
+        else union(previous, triangleIndex);
+      }
+
+      for (let triangleIndex = 0; triangleIndex < totalTris; triangleIndex++) {
+        const cursor = triRange.start + triangleIndex * 3;
+        const ia = getVertexIndex(indexAttr, cursor);
+        const ib = getVertexIndex(indexAttr, cursor + 1);
+        const ic = getVertexIndex(indexAttr, cursor + 2);
+        registerEdge(ia, ib, triangleIndex);
+        registerEdge(ib, ic, triangleIndex);
+        registerEdge(ic, ia, triangleIndex);
+      }
+
+      const rootToIsland = new Map();
+      const triangleIslands = new Int32Array(totalTris);
+      for (let i = 0; i < totalTris; i++) {
+        const root = findRoot(i);
+        let island = rootToIsland.get(root);
+        if (island === undefined) {
+          island = rootToIsland.size;
+          rootToIsland.set(root, island);
+        }
+        triangleIslands[i] = island;
+      }
+
+      const colors = new Float32Array(Math.max(1, rootToIsland.size) * 3);
+      const color = new THREE.Color();
+      for (let i = 0; i < Math.max(1, rootToIsland.size); i++) {
+        const hue = fract(0.113 + i * 0.61803398875);
+        const saturation = 0.58 + 0.24 * hash2(i + 17.1, 4.3);
+        const lightness = 0.48 + 0.16 * hash2(i + 2.7, 19.9);
+        color.setHSL(hue, saturation, lightness);
+        colors[i * 3] = color.r;
+        colors[i * 3 + 1] = color.g;
+        colors[i * 3 + 2] = color.b;
+      }
+
+      const result = { triangleIslands, colors, islandCount: Math.max(1, rootToIsland.size) };
+      state.uvIslandCache.set(target.key, result);
+      return result;
+    }
+
+    function rasterTriangleUV(res, uv0, uv1, uv2, flipV, callback) {
+      const vToY = v => (flipV ? (1 - v) : v) * (res - 1);
+      const x0 = uv0.x * (res - 1);
+      const y0 = vToY(uv0.y);
+      const x1 = uv1.x * (res - 1);
+      const y1 = vToY(uv1.y);
+      const x2 = uv2.x * (res - 1);
+      const y2 = vToY(uv2.y);
+
+      const minX = Math.max(0, Math.floor(Math.min(x0, x1, x2)));
+      const minY = Math.max(0, Math.floor(Math.min(y0, y1, y2)));
+      const maxX = Math.min(res - 1, Math.ceil(Math.max(x0, x1, x2)));
+      const maxY = Math.min(res - 1, Math.ceil(Math.max(y0, y1, y2)));
+      if (maxX < 0 || maxY < 0 || minX >= res || minY >= res) return;
+
+      const area = edge2D(x0, y0, x1, y1, x2, y2);
+      if (Math.abs(area) < 1e-10) return;
+      const eps = -1e-5;
+
+      for (let y = minY; y <= maxY; y++) {
+        for (let x = minX; x <= maxX; x++) {
+          const px = x + 0.5;
+          const py = y + 0.5;
+          const w0 = edge2D(x1, y1, x2, y2, px, py) / area;
+          const w1 = edge2D(x2, y2, x0, y0, px, py) / area;
+          const w2 = 1 - w0 - w1;
+          if (w0 >= eps && w1 >= eps && w2 >= eps) callback(x, y, w0, w1, w2);
+        }
+      }
+    }
+
+    function edge2D(ax, ay, bx, by, cx, cy) {
+      return (cx - ax) * (by - ay) - (cy - ay) * (bx - ax);
+    }
+
+    function generateHemisphereSamples(count) {
+      const out = [];
+      const golden = Math.PI * (3 - Math.sqrt(5));
+      for (let i = 0; i < count; i++) {
+        const u = (i + 0.5) / count;
+        const z = Math.sqrt(1 - u * 0.88);
+        const r = Math.sqrt(Math.max(0, 1 - z * z));
+        const theta = i * golden;
+        out.push(new THREE.Vector3(Math.cos(theta) * r, Math.sin(theta) * r, z));
+      }
+      return out;
+    }
+
+    function computeOcclusion(point, normal, samples, far, settings) {
+      buildBasis(normal, tmpTangent, tmpBitangent);
+      tmpRayOrigin.copy(point).addScaledVector(normal, settings.bias);
+      let ao = 0;
+      let cavity = 0;
+      let bentX = 0;
+      let bentY = 0;
+      let bentZ = 0;
+      let bentWeight = 0;
+      const aoRadius = settings.aoRadius;
+      const cavityRadius = settings.cavityRadius;
+      const bentRadius = settings.bentRadius;
+      for (let i = 0; i < samples.length; i++) {
+        const s = samples[i];
+        tmpRayDir.set(0, 0, 0)
+          .addScaledVector(tmpTangent, s.x)
+          .addScaledVector(tmpBitangent, s.y)
+          .addScaledVector(normal, s.z)
+          .normalize();
+        const hit = firstHit(tmpRayOrigin, tmpRayDir, far);
+        if (hit) {
+          if (hit.distance <= aoRadius) ao += 1 - hit.distance / aoRadius;
+          if (hit.distance <= cavityRadius) cavity += 1 - hit.distance / cavityRadius;
+        }
+        const visibility = hit && hit.distance < bentRadius ? clamp01(hit.distance / bentRadius) : 1;
+        const weight = visibility * (0.35 + 0.65 * s.z);
+        bentX += tmpRayDir.x * weight;
+        bentY += tmpRayDir.y * weight;
+        bentZ += tmpRayDir.z * weight;
+        bentWeight += weight;
+      }
+      if (bentWeight > 1e-8) {
+        bentX /= bentWeight;
+        bentY /= bentWeight;
+        bentZ /= bentWeight;
+      } else {
+        bentX = normal.x;
+        bentY = normal.y;
+        bentZ = normal.z;
+      }
+      const bentLength = Math.hypot(bentX, bentY, bentZ);
+      if (bentLength > 1e-8) {
+        bentX /= bentLength;
+        bentY /= bentLength;
+        bentZ /= bentLength;
+      } else {
+        bentX = normal.x;
+        bentY = normal.y;
+        bentZ = normal.z;
+      }
+      return {
+        ao: ao / samples.length,
+        cavity: cavity / samples.length,
+        bentX, bentY, bentZ
+      };
+    }
+
+    function computeThickness(point, normal, settings) {
+      tmpRayOrigin.copy(point).addScaledVector(normal, -settings.bias * 2.0);
+      tmpRayDir.copy(normal).multiplyScalar(-1).normalize();
+      const hit = firstHit(tmpRayOrigin, tmpRayDir, settings.thicknessMax, true);
+      const dist = hit ? Math.max(0, hit.distance) : settings.thicknessMax;
+      return clamp01(dist / settings.thicknessMax);
+    }
+
+    function computeLeaking(point, normal, cavityOcc, settings, cachedOverhead = null) {
+      const gravity = settings.gravity;
+      const up = tmpAxis.copy(gravity).multiplyScalar(-1).normalize();
+      const nUp = normal.dot(up);
+      const verticality = Math.pow(clamp01(1 - Math.abs(nUp)), 0.55);
+      const underside = clamp01(-nUp);
+      const topFacing = clamp01(nUp);
+
+      let overheadMask = cachedOverhead;
+      if (overheadMask === null) {
+        tmpRayOrigin.copy(point).addScaledVector(up, settings.bias * 2.0);
+        const overhead = firstHit(tmpRayOrigin, up, settings.leakDistance);
+        overheadMask = overhead ? 1 - clamp01(overhead.distance / settings.leakDistance) : 0;
+      }
+
+      const coords = planeCoordsForGravity(point, gravity);
+      const scale = settings.dripFreq / Math.max(1e-6, state.boundsDiag);
+      const stripe = Math.pow(smoothstep(0.48, 0.90, fbm2(coords.x * scale * 8.0 + 21.13, coords.y * scale * 8.0 - 6.91)), 1.65);
+      const fineBreakup = fbm2(coords.x * scale * 22.0 - 4.7, point.dot(up) * scale * 7.0 + coords.y * 0.037);
+
+      const rainSource = Math.max(overheadMask, topFacing * 0.55);
+      const flow = verticality * rainSource;
+      const creviceDirt = cavityOcc * (0.55 + underside * 0.35);
+      const drips = stripe * verticality * (0.45 + 0.55 * rainSource) * smoothstep(0.25, 0.82, fineBreakup);
+      return clamp01((flow * 0.55 + creviceDirt * 0.8 + drips * 0.85 + underside * cavityOcc * 0.25) * settings.leakStrength);
+    }
+
+    function computeEdgeWear(point, normal, signedCurvature, cavityOcc, settings) {
+      const convex = clamp01(signedCurvature * settings.edgeWearStrength);
+      if (convex <= 0) return 0;
+      const coords = planeCoordsForGravity(point, settings.upAxis);
+      const scale = 10 / Math.max(1e-6, state.boundsDiag);
+      const breakup = 0.58 + 0.42 * smoothstep(0.22, 0.86, fbm2(coords.x * scale + 7.1, coords.y * scale - 11.3));
+      const exposure = clamp01(1 - cavityOcc * 0.92);
+      const topBias = 0.78 + 0.22 * clamp01(0.5 + 0.5 * normal.dot(settings.upAxis));
+      return clamp01(Math.pow(convex, 0.58) * exposure * breakup * topBias);
+    }
+
+    function computeDust(point, normal, cavityOcc, settings) {
+      const upness = normal.dot(settings.upAxis);
+      const upperEdge = Math.min(1, settings.dustCos + Math.max(0.04, (1 - settings.dustCos) * 0.65));
+      const slopeHold = smoothstep(settings.dustCos, upperEdge, upness);
+      if (slopeHold <= 0) return 0;
+      const coords = planeCoordsForGravity(point, settings.upAxis);
+      const scale = 7.5 / Math.max(1e-6, state.boundsDiag);
+      const broadNoise = 0.70 + 0.30 * fbm2(coords.x * scale + 2.1, coords.y * scale - 5.4);
+      const speckle = smoothstep(0.15, 0.88, fbm2(coords.x * scale * 3.1 - 13.0, coords.y * scale * 3.1 + 8.7));
+      const deposit = slopeHold * (0.72 + cavityOcc * 0.68) * broadNoise * (0.78 + 0.22 * speckle);
+      return clamp01(deposit * settings.dustStrength);
+    }
+
+    function buildBasis(normal, tangent, bitangent) {
+      if (Math.abs(normal.y) < 0.98) tangent.set(0, 1, 0).cross(normal).normalize();
+      else tangent.set(1, 0, 0).cross(normal).normalize();
+      bitangent.copy(normal).cross(tangent).normalize();
+    }
+
+    function firstHit(origin, dir, far, fullScene = false) {
+      const geometry = fullScene ? (state.fullBVHGeometry || state.bvhGeometry) : state.bvhGeometry;
+      if (!geometry) return null;
+      raycaster.ray.set(origin, dir);
+      // The merged occlusion geometry is already in world space.
+      return geometry.boundsTree.raycastFirst(raycaster.ray, THREE.DoubleSide, 0, far);
+    }
+
+    function computeAxisDepth(point, axisName) {
+      let min, max, value;
+      if (axisName === 'X') {
+        min = state.bounds.min.x; max = state.bounds.max.x; value = point.x;
+      } else if (axisName === 'Y') {
+        min = state.bounds.min.y; max = state.bounds.max.y; value = point.y;
+      } else {
+        min = state.bounds.min.z; max = state.bounds.max.z; value = point.z;
+      }
+      return clamp01((value - min) / Math.max(1e-8, max - min));
+    }
+
+    function axisVector(label) {
+      const sign = label[0] === '-' ? -1 : 1;
+      const axis = label[1].toUpperCase();
+      const v = new THREE.Vector3();
+      if (axis === 'X') v.x = sign;
+      if (axis === 'Y') v.y = sign;
+      if (axis === 'Z') v.z = sign;
+      return v;
+    }
+
+    function planeCoordsForGravity(point, gravity) {
+      const ax = Math.abs(gravity.x);
+      const ay = Math.abs(gravity.y);
+      const az = Math.abs(gravity.z);
+      if (ay >= ax && ay >= az) return { x: point.x, y: point.z };
+      if (az >= ax && az >= ay) return { x: point.x, y: point.y };
+      return { x: point.z, y: point.y };
+    }
+
+    function writeGray(imageData, pixelIndex, value) {
+      const g = Math.round(clamp01(value) * 255);
+      const i = pixelIndex * 4;
+      imageData.data[i] = g;
+      imageData.data[i + 1] = g;
+      imageData.data[i + 2] = g;
+      imageData.data[i + 3] = 255;
+    }
+
+    function writeRGB(imageData, pixelIndex, r, g, b) {
+      const i = pixelIndex * 4;
+      imageData.data[i] = Math.round(clamp01(r) * 255);
+      imageData.data[i + 1] = Math.round(clamp01(g) * 255);
+      imageData.data[i + 2] = Math.round(clamp01(b) * 255);
+      imageData.data[i + 3] = 255;
+    }
+
+    function buildUVBorderImage(imageData, coverage, res, width) {
+      let current = new Uint8Array(coverage);
+      const border = new Uint8Array(coverage.length);
+      const steps = Math.max(1, Math.min(32, width | 0));
+      for (let step = 0; step < steps; step++) {
+        const next = new Uint8Array(current);
+        for (let y = 0; y < res; y++) {
+          for (let x = 0; x < res; x++) {
+            const index = y * res + x;
+            if (!current[index]) continue;
+            let boundary = x === 0 || y === 0 || x === res - 1 || y === res - 1;
+            if (!boundary) {
+              for (let yy = -1; yy <= 1 && !boundary; yy++) {
+                for (let xx = -1; xx <= 1; xx++) {
+                  if (!xx && !yy) continue;
+                  if (!current[(y + yy) * res + (x + xx)]) {
+                    boundary = true;
+                    break;
+                  }
+                }
+              }
+            }
+            if (boundary) {
+              border[index] = 1;
+              next[index] = 0;
+            }
+          }
+        }
+        current = next;
+      }
+      for (let i = 0; i < coverage.length; i++) {
+        if (coverage[i]) writeGray(imageData, i, border[i] ? 1 : 0);
+      }
+    }
+
+    function dilateImageData(imageData, res, iterations) {
+      const data = imageData.data;
+      const offsets = [
+        [0, -1], [-1, 0], [1, 0], [0, 1],
+        [-1, -1], [1, -1], [-1, 1], [1, 1]
+      ];
+      for (let iter = 0; iter < iterations; iter++) {
+        const copy = new Uint8ClampedArray(data);
+        for (let y = 0; y < res; y++) {
+          for (let x = 0; x < res; x++) {
+            const idx = (y * res + x) * 4;
+            if (copy[idx + 3] !== 0) continue;
+            for (const [xx, yy] of offsets) {
+              const nx = x + xx;
+              const ny = y + yy;
+              if (nx < 0 || nx >= res || ny < 0 || ny >= res) continue;
+              const ni = (ny * res + nx) * 4;
+              if (copy[ni + 3] === 0) continue;
+              data[idx] = copy[ni];
+              data[idx + 1] = copy[ni + 1];
+              data[idx + 2] = copy[ni + 2];
+              data[idx + 3] = copy[ni + 3];
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    function smoothContrast(v, c) {
+      v = clamp01(v);
+      return clamp01((v - 0.5) * c + 0.5);
+    }
+
+    function smoothstep(edge0, edge1, x) {
+      const t = clamp01((x - edge0) / Math.max(1e-8, edge1 - edge0));
+      return t * t * (3 - 2 * t);
+    }
+
+    function hash2(x, y) {
+      return fract(Math.sin(x * 127.1 + y * 311.7) * 43758.5453123);
+    }
+
+    function noise2(x, y) {
+      const ix = Math.floor(x);
+      const iy = Math.floor(y);
+      const fx = fract(x);
+      const fy = fract(y);
+      const ux = fx * fx * (3 - 2 * fx);
+      const uy = fy * fy * (3 - 2 * fy);
+      const a = hash2(ix, iy);
+      const b = hash2(ix + 1, iy);
+      const c = hash2(ix, iy + 1);
+      const d = hash2(ix + 1, iy + 1);
+      return lerp(lerp(a, b, ux), lerp(c, d, ux), uy);
+    }
+
+    function fbm2(x, y) {
+      let value = 0;
+      let amp = 0.5;
+      let freq = 1;
+      for (let i = 0; i < 4; i++) {
+        value += amp * noise2(x * freq, y * freq);
+        freq *= 2.03;
+        amp *= 0.5;
+      }
+      return value / 0.9375;
+    }
+
+    function fract(x) { return x - Math.floor(x); }
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    function clamp01(v) { return Math.min(1, Math.max(0, Number.isFinite(v) ? v : 0)); }
+
+    async function yieldToBrowser() {
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+
+    function renderResults() {
+      els.resultsBody.innerHTML = '';
+      if (!state.results.size) {
+        els.results.classList.remove('show');
+        return;
+      }
+      for (const result of state.results.values()) {
+        const title = document.createElement('div');
+        title.className = 'target-title';
+        title.textContent = result.target.displayName;
+        els.resultsBody.appendChild(title);
+
+        const cards = document.createElement('div');
+        cards.className = 'cards';
+        for (const mapResult of result.maps.values()) {
+          const card = document.createElement('div');
+          card.className = 'card';
+          card.appendChild(mapResult.canvas);
+
+          const meta = document.createElement('div');
+          meta.className = 'card-meta';
+          const label = document.createElement('span');
+          label.textContent = mapResult.label;
+          const preview = document.createElement('button');
+          preview.className = 'mini';
+          preview.textContent = 'Preview';
+          preview.addEventListener('click', () => {
+            previewResult(result.target.key, mapResult.key);
+          });
+          const save = document.createElement('button');
+          save.className = 'mini';
+          save.textContent = 'PNG';
+          save.addEventListener('click', () => downloadCanvas(mapResult.canvas, fileNameFor(result.target, mapResult.key, mapResult.resolution)));
+          meta.append(label, preview, save);
+          card.appendChild(meta);
+          cards.appendChild(card);
+        }
+        els.resultsBody.appendChild(cards);
+      }
+      els.results.classList.add('show');
+    }
+
+    function resetPreviewControls() {
+      els.previewTargetSelect.innerHTML = '<option value="">No baked targets</option>';
+      els.previewTargetSelect.disabled = true;
+      els.previewMapSelect.innerHTML = '<option value="">Original material</option>';
+      els.previewMapSelect.disabled = true;
+      els.previewPrevBtn.disabled = true;
+      els.previewNextBtn.disabled = true;
+      els.previewOriginalBtn.disabled = true;
+      els.previewChannel.textContent = '—';
+      els.previewCounter.textContent = '0 / 0';
+    }
+
+    function updatePreviewControls(preferredTarget = null, preferredMap = null) {
+      if (!state.root) {
+        resetPreviewControls();
+        return;
+      }
+
+      const wantedTarget = preferredTarget ?? state.activePreviewTarget ?? els.previewTargetSelect.value;
+      const wantedMap = preferredMap ?? state.activePreviewMap ?? els.previewMapSelect.value;
+      const targetKeys = new Set(state.targets.map(t => t.key));
+
+      els.previewTargetSelect.innerHTML = '';
+      els.previewTargetSelect.append(new Option('All submeshes · original & baked maps', '__all__'));
+      for (const target of state.targets) {
+        els.previewTargetSelect.append(new Option(target.displayName, target.key));
+      }
+      els.previewTargetSelect.disabled = false;
+
+      const targetValue = wantedTarget === '__all__' || targetKeys.has(wantedTarget)
+        ? wantedTarget
+        : '__all__';
+      els.previewTargetSelect.value = targetValue;
+      state.activePreviewTarget = targetValue;
+
+      refreshPreviewMapOptions(wantedMap);
+    }
+
+    function availablePreviewMapKeys(targetKey) {
+      const available = new Set();
+      if (targetKey === '__all__') {
+        for (const result of state.results.values()) {
+          for (const key of result.maps.keys()) available.add(key);
+        }
+      } else {
+        const result = state.results.get(targetKey);
+        if (result) for (const key of result.maps.keys()) available.add(key);
+      }
+      const originals = originalPreviewEntries(targetKey);
+      const composite = targetKey === '__all__' ? mask.composites.size > 0 : mask.composites.has(targetKey);
+      return [...ORIGINAL_MAPS.filter(info => originals.some(({ material }) => hasOriginalMap(material, info))).map(info => info.key), ...(composite ? ['composite'] : []),
+        ...MAPS.filter(info => available.has(info.key)).map(info => info.key)];
+    }
+
+    function refreshPreviewMapOptions(preferredMap = null) {
+      const targetKey = els.previewTargetSelect.value || state.activePreviewTarget || '__all__';
+      const wantedMap = preferredMap ?? state.activePreviewMap ?? els.previewMapSelect.value;
+      const mapKeys = availablePreviewMapKeys(targetKey);
+
+      els.previewMapSelect.innerHTML = '';
+      els.previewMapSelect.append(new Option('Original material', ''));
+      for (const key of mapKeys) {
+        const info = [...ORIGINAL_MAPS, COMPOSITE_MAP, ...MAPS].find(map => map.key === key);
+        els.previewMapSelect.append(new Option(key.startsWith('original:') ? info.label : `Baked · ${info?.label || key}`, key));
+      }
+
+      const chosenMap = mapKeys.includes(wantedMap) ? wantedMap : '';
+      els.previewMapSelect.value = chosenMap;
+      els.previewMapSelect.disabled = mapKeys.length === 0;
+      state.activePreviewMap = chosenMap;
+      updatePreviewHUD();
+    }
+
+    function updatePreviewHUD() {
+      const mapKey = els.previewMapSelect.value;
+      const mapCount = Math.max(0, els.previewMapSelect.options.length - 1);
+      const selectedMapIndex = mapKey ? Math.max(1, els.previewMapSelect.selectedIndex) : 0;
+      const info = [...ORIGINAL_MAPS, COMPOSITE_MAP, ...MAPS].find(map => map.key === mapKey);
+
+      els.previewChannel.textContent = info ? info.channels.toUpperCase() : 'BASE';
+      els.previewCounter.textContent = mapKey ? `${selectedMapIndex} / ${mapCount}` : `0 / ${mapCount}`;
+      els.previewPrevBtn.disabled = mapCount === 0;
+      els.previewNextBtn.disabled = mapCount === 0;
+      els.previewOriginalBtn.disabled = !state.root || !mapKey;
+    }
+
+    function cycleScenePreview(direction) {
+      if (els.previewMapSelect.disabled || els.previewMapSelect.options.length <= 1) return;
+      const optionCount = els.previewMapSelect.options.length;
+      let next = els.previewMapSelect.selectedIndex + direction;
+      if (next < 0) next = optionCount - 1;
+      if (next >= optionCount) next = 0;
+      els.previewMapSelect.selectedIndex = next;
+      applyScenePreviewFromControls();
+    }
+
+    function onPreviewShortcut(event) {
+      if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return;
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+      if (event.key === '[') {
+        event.preventDefault();
+        cycleScenePreview(-1);
+      } else if (event.key === ']') {
+        event.preventDefault();
+        cycleScenePreview(1);
+      } else if (event.key.toLowerCase() === 'o' && state.root) {
+        event.preventDefault();
+        els.previewMapSelect.value = '';
+        applyScenePreviewFromControls();
+      }
+    }
+
+    function previewResult(targetKey, mapKey) {
+      updatePreviewControls(targetKey, mapKey);
+      els.previewTargetSelect.value = targetKey;
+      state.activePreviewTarget = targetKey;
+      refreshPreviewMapOptions(mapKey);
+      els.previewMapSelect.value = mapKey;
+      applyScenePreviewFromControls();
+    }
+
+    function applyScenePreviewFromControls(updateStatus = true) {
+      const targetKey = els.previewTargetSelect.value || '__all__';
+      const mapKey = els.previewMapSelect.value || '';
+      state.activePreviewTarget = targetKey;
+      state.activePreviewMap = mapKey;
+
+      if (!mapKey) {
+        restoreOriginalMaterials(false);
+        updatePreviewHUD();
+        if (updateStatus) setStatus('Original materials restored.');
+        return;
+      }
+
+      applyScenePreview(targetKey, mapKey, updateStatus);
+    }
+
+    function applyScenePreview(targetKey, mapKey, updateStatus = true) {
+      restoreOriginalMaterials(false);
+      if (mapKey.startsWith('original:')) {
+        applyOriginalMapPreview(targetKey, mapKey, updateStatus);
+        return;
+      }
+
+      const collection = mapKey === 'composite' ? mask.composites : state.results;
+      const resultList = targetKey === '__all__'
+        ? [...collection.values()]
+        : [collection.get(targetKey)].filter(Boolean);
+      const assignments = new Map();
+      let applied = 0;
+
+      for (const result of resultList) {
+        const mapResult = result.maps.get(mapKey);
+        if (!mapResult) continue;
+
+        const texture = new THREE.CanvasTexture(mapResult.canvas);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.wrapS = THREE.ClampToEdgeWrapping;
+        texture.wrapT = THREE.ClampToEdgeWrapping;
+        texture.flipY = !!result.settings.flipV;
+        texture.generateMipmaps = true;
+        texture.minFilter = THREE.LinearMipmapLinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        texture.needsUpdate = true;
+
+        const material = new THREE.MeshBasicMaterial({
+          map: texture,
+          side: THREE.DoubleSide,
+          toneMapped: false,
+          fog: false
+        });
+        material.name = `Preview_${result.target.key}_${mapKey}`;
+        state.previewMaterials.push(material);
+
+        const target = result.target;
+        const original = state.originalMaterials.get(target.mesh.uuid);
+        if (target.group && Array.isArray(original)) {
+          let assignment = assignments.get(target.mesh.uuid);
+          if (!assignment) {
+            assignment = { mesh: target.mesh, material: original.slice() };
+            assignments.set(target.mesh.uuid, assignment);
+          }
+          assignment.material[target.materialIndex] = material;
+        } else {
+          assignments.set(target.mesh.uuid, { mesh: target.mesh, material });
+        }
+        applied++;
+      }
+
+      for (const assignment of assignments.values()) {
+        assignment.mesh.material = assignment.material;
+      }
+
+      updatePreviewHUD();
+      const info = [COMPOSITE_MAP, ...MAPS].find(map => map.key === mapKey);
+      const mapLabel = info?.label || mapKey;
+      if (updateStatus) {
+        if (targetKey === '__all__') {
+          setStatus(`Previewing ${mapLabel} on ${applied} of ${resultList.length} baked submesh${resultList.length === 1 ? '' : 'es'}. Use [ and ] to switch maps.`);
+        } else {
+          const result = collection.get(targetKey);
+          setStatus(`Previewing ${mapLabel} on ${result?.target.displayName || 'the selected submesh'}. Use [ and ] to switch maps.`);
+        }
+      }
+    }
+
+    function originalPreviewEntries(targetKey) {
+      if (targetKey !== '__all__') {
+        const target = state.targets.find(t => t.key === targetKey);
+        if (!target) return [];
+        const original = state.originalMaterials.get(target.mesh.uuid);
+        return [{ mesh: target.mesh, index: Array.isArray(original) ? target.materialIndex : null,
+          material: Array.isArray(original) ? original[target.materialIndex] : original }];
+      }
+      return state.meshes.flatMap(mesh => {
+        const original = state.originalMaterials.get(mesh.uuid);
+        return Array.isArray(original) ? original.map((material, index) => ({ mesh, material, index })) : [{ mesh, material: original, index: null }];
+      });
+    }
+
+    function hasOriginalMap(material, info) {
+      return !!material && (!!material[info.property] || (info.factor && material[info.factor] !== undefined));
+    }
+
+    function applyOriginalMapPreview(targetKey, mapKey, updateStatus) {
+      const info = ORIGINAL_MAPS.find(m => m.key === mapKey);
+      if (!info) return;
+      let textures = 0, constants = 0;
+      for (const entry of originalPreviewEntries(targetKey)) {
+        if (!hasOriginalMap(entry.material, info)) continue;
+        const source = entry.material[info.property];
+        const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, toneMapped: false, fog: false });
+        if (source) {
+          // Clone the texture wrapper, retaining its UV set, KHR_texture_transform,
+          // wrapping, filtering and image. Never dispose or mutate the GLB texture.
+          material.map = source.clone();
+          material.map.colorSpace = THREE.NoColorSpace;
+          material.map.needsUpdate = true;
+          const swizzle = info.channels === 'rgb' ? 'rgb' : info.channels.repeat(3);
+          material.onBeforeCompile = shader => {
+            shader.fragmentShader = shader.fragmentShader.replace('#include <colorspace_fragment>',
+              `gl_FragColor = vec4(texture2D(map, vMapUv).${swizzle}, 1.0);`);
+          };
+          material.customProgramCacheKey = () => `original-channel-${swizzle}`;
+          textures++;
+        } else {
+          const factor = entry.material[info.factor];
+          if (factor?.isColor) material.color.copy(factor);
+          else {
+            const value = clamp01(factor);
+            material.color.setRGB(value, value, value, THREE.SRGBColorSpace);
+          }
+          constants++;
+        }
+        material.name = info.label;
+        state.previewMaterials.push(material);
+        if (entry.index === null) entry.mesh.material = material;
+        else {
+          const original = state.originalMaterials.get(entry.mesh.uuid);
+          if (entry.mesh.material === original) entry.mesh.material = original.slice();
+          entry.mesh.material[entry.index] = material;
+        }
+      }
+      updatePreviewHUD();
+      if (updateStatus) setStatus(`${info.label} · ${textures} texture channel${textures === 1 ? '' : 's'}, ${constants} material constant${constants === 1 ? '' : 's'}. Missing channels retain their original material.`);
+    }
+
+    function restoreOriginalMaterials(updateStatus = true) {
+      for (const mesh of state.meshes) {
+        if (state.originalMaterials.has(mesh.uuid)) mesh.material = state.originalMaterials.get(mesh.uuid);
+      }
+      for (const material of state.previewMaterials) {
+        if (material.map) material.map.dispose();
+        material.dispose();
+      }
+      state.previewMaterials.length = 0;
+      if (updateStatus) setStatus(state.root ? 'Original materials restored.' : 'Load a GLB to begin.');
+    }
+
+    function setProgress(text, fraction) {
+      els.progressText.textContent = text;
+      els.progressFill.style.width = `${Math.round(clamp01(fraction) * 100)}%`;
+    }
+
+    function setStatus(text, isError = false) {
+      els.statusPill.textContent = text;
+      els.statusPill.style.borderColor = isError ? 'rgba(255,113,113,0.55)' : 'rgba(255,255,255,0.12)';
+      els.statusPill.style.color = isError ? '#ffd5d5' : 'var(--text)';
+    }
+
+    function fileNameFor(target, mapKey, res) {
+      const info = MAPS.find(m => m.key === mapKey);
+      const suffix = info?.suffix || mapKey;
+      return `${safeFileName(state.modelFileName)}_${target.safeName}_${suffix}_${res}.png`;
+    }
+
+    function safeFileName(name) {
+      return String(name || 'mesh')
+        .replace(/[\\/:*?"<>|]+/g, '_')
+        .replace(/\s+/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .slice(0, 96) || 'mesh';
+    }
+
+    function downloadCanvas(canvas, filename) {
+      canvas.toBlob(blob => {
+        if (!blob) return;
+        downloadBlob(blob, filename);
+      }, 'image/png');
+    }
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    async function downloadAllZip() {
+      if (!state.results.size) return;
+      if (!window.JSZip) {
+        for (const result of state.results.values()) {
+          for (const mapResult of result.maps.values()) {
+            downloadCanvas(mapResult.canvas, fileNameFor(result.target, mapResult.key, mapResult.resolution));
+          }
+        }
+        return;
+      }
+      els.downloadAllBtn.disabled = true;
+      setStatus('Packaging ZIP…');
+      const zip = new window.JSZip();
+      for (const result of state.results.values()) {
+        const folder = zip.folder(result.target.safeName || 'mesh');
+        for (const mapResult of result.maps.values()) {
+          const blob = await canvasToBlob(mapResult.canvas);
+          folder.file(fileNameFor(result.target, mapResult.key, mapResult.resolution), blob);
+        }
+      }
+      const manifest = {
+        source: state.modelFileName,
+        generatedAt: new Date().toISOString(),
+        targets: [...state.results.values()].map(result => ({
+          name: result.target.displayName,
+          maps: [...result.maps.keys()],
+          resolution: [...result.maps.values()][0]?.resolution || null,
+          settings: summarizeSettings(result.settings)
+        }))
+      };
+      zip.file('manifest.json', JSON.stringify(manifest, null, 2));
+      const blob = await zip.generateAsync({ type: 'blob' });
+      downloadBlob(blob, `${safeFileName(state.modelFileName)}_mesh_maps.zip`);
+      els.downloadAllBtn.disabled = false;
+      setStatus('ZIP downloaded.');
+    }
+
+    function canvasToBlob(canvas) {
+      return new Promise(resolve => canvas.toBlob(blob => resolve(blob), 'image/png'));
+    }
+
+    function summarizeSettings(settings) {
+      return {
+        occlusionSource: settings.occlusionSource || 'all',
+        resolution: settings.resolution,
+        samples: settings.samples,
+        padding: settings.padding,
+        flipV: settings.flipV,
+        bias: settings.bias,
+        aoRadius: settings.aoRadius,
+        cavityRadius: settings.cavityRadius,
+        bentRadius: settings.bentRadius,
+        curvatureStrength: settings.curvatureStrength,
+        edgeWearStrength: settings.edgeWearStrength,
+        dustStrength: settings.dustStrength,
+        dustAngle: settings.dustAngle,
+        uvBorderWidth: settings.uvBorderWidth,
+        thicknessMax: settings.thicknessMax,
+        depthAxisName: settings.depthAxisName,
+        leakDistance: settings.leakDistance
+      };
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>'"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[ch]));
+    }
+  </script>
+</body>
+</html>

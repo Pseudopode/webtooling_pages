@@ -1,0 +1,18 @@
+Autonomous GLB Mesh Map Baker — bundled runtime dependencies
+
+This folder includes the following third-party libraries so the page can run
+without a network connection after it has been loaded from GitHub Pages:
+
+- es-module-shims 1.10.0 — MIT — Guy Bedford
+- three.js 0.160.0 — MIT — three.js authors
+- three-mesh-bvh 0.7.8 — MIT — Garrett Johnson
+- JSZip 3.10.1 — MIT or GPLv3 — Stuart Knightley and contributors; includes pako under MIT
+
+The corresponding license texts are in vendor/licenses/. The original package
+files and versions are available from:
+
+- https://unpkg.com/es-module-shims@1.10.0/
+- https://unpkg.com/three@0.160.0/
+- https://unpkg.com/three-mesh-bvh@0.7.8/
+- https://cdn.jsdelivr.net/npm/jszip@3.10.1/
+- https://github.com/nodeca/pako
