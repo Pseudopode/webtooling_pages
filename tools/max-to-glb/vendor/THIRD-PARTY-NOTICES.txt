@@ -1,0 +1,17 @@
+MAX to GLB autonomous Pages bundle
+
+This folder vendors the following runtime assets so the page can run without a CDN:
+
+* Pyodide 0.26.4, including pyodide.js, pyodide.asm.js,
+  pyodide.asm.wasm.gz, python_stdlib.zip, and pyodide-lock.json. The
+  WebAssembly binary is gzip-compressed and decompressed by the local loader
+  with the browser DecompressionStream API.
+* CPython 3.12 standard-library distribution used by the Pyodide runtime.
+
+The Pyodide source is licensed under the Mozilla Public License 2.0. The
+CPython license is included for the bundled standard-library distribution.
+Full license texts are in vendor/licenses/.
+
+Sources:
+https://github.com/pyodide/pyodide/tree/0.26.4
+https://github.com/python/cpython/tree/3.12

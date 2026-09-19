@@ -1,0 +1,4490 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:,">
+<title>MAX → GLB converter</title>
+<style>
+  :root {
+    --bg: #090b10;
+    --surface: #11141b;
+    --surface-2: #171b24;
+    --surface-3: #1d222d;
+    --line: #282f3c;
+    --line-hot: #5367ff;
+    --text: #f3f5fa;
+    --muted: #949dac;
+    --blue: #7182ff;
+    --cyan: #4ed9c4;
+    --green: #5dde9d;
+    --amber: #ffca71;
+    --red: #ff727d;
+    --shadow: 0 26px 80px rgba(0, 0, 0, .38);
+  }
+
+  * { box-sizing: border-box }
+
+  html { min-height: 100%; background: var(--bg) }
+
+  body {
+    min-height: 100vh;
+    margin: 0;
+    color: var(--text);
+    font: 15px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background:
+      radial-gradient(900px 520px at 8% -12%, rgba(83, 103, 255, .20), transparent 65%),
+      radial-gradient(760px 440px at 96% 2%, rgba(78, 217, 196, .12), transparent 66%),
+      var(--bg);
+  }
+
+  button, input { font: inherit }
+
+  button, .button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 40px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 8px 14px;
+    color: var(--text);
+    background: var(--surface-2);
+    font-weight: 650;
+    text-decoration: none;
+    cursor: pointer;
+    transition: border-color .16s, background .16s, transform .16s, opacity .16s;
+  }
+
+  button:hover:not(:disabled), .button:hover {
+    border-color: #455064;
+    background: var(--surface-3);
+    transform: translateY(-1px);
+  }
+
+  button:focus-visible, .button:focus-visible, input:focus-visible + .switch {
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
+  }
+
+  button:disabled { opacity: .42; cursor: not-allowed }
+  input[type="file"] { position: fixed; width: 1px; height: 1px; opacity: 0; pointer-events: none }
+
+  .shell { width: min(980px, calc(100% - 36px)); margin: 0 auto; padding: 42px 0 70px }
+
+  header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 24px }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    color: var(--cyan);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+  }
+
+  .eyebrow::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 18px currentColor }
+
+  h1 { margin: 0; font-size: clamp(31px, 5vw, 49px); line-height: 1.04; letter-spacing: -.045em }
+
+  h1 span {
+    background: linear-gradient(92deg, var(--blue), var(--cyan));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .lede { max-width: 680px; margin: 13px 0 0; color: var(--muted); font-size: 15.5px }
+
+  .privacy {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex: none;
+    margin-top: 8px;
+    padding: 7px 10px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--muted);
+    background: rgba(17, 20, 27, .72);
+    font-size: 12px;
+  }
+
+  .privacy svg { color: var(--green) }
+
+  .panel {
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: rgba(17, 20, 27, .90);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    backdrop-filter: blur(18px);
+  }
+
+  .drop {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 18px;
+    min-height: 164px;
+    margin: 16px;
+    padding: 28px 30px;
+    border: 1.5px dashed #364052;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(113, 130, 255, .055), rgba(78, 217, 196, .025));
+    transition: border-color .17s, background .17s, transform .17s, box-shadow .17s;
+  }
+
+  .drop.hot, body.dragging .drop {
+    border-color: var(--line-hot);
+    background: linear-gradient(135deg, rgba(113, 130, 255, .13), rgba(78, 217, 196, .07));
+    box-shadow: inset 0 0 0 1px rgba(113, 130, 255, .16), 0 0 0 5px rgba(83, 103, 255, .07);
+    transform: translateY(-1px);
+  }
+
+  .drop-icon {
+    display: grid;
+    place-items: center;
+    width: 58px;
+    height: 58px;
+    border: 1px solid rgba(113, 130, 255, .25);
+    border-radius: 15px;
+    color: #aeb8ff;
+    background: rgba(113, 130, 255, .10);
+  }
+
+  .drop h2 { margin: 0 0 4px; font-size: 17px; letter-spacing: -.01em }
+  .drop p { margin: 0; color: var(--muted); font-size: 13px }
+  .drop p code { color: #c8d0df }
+
+  .choose { background: #eef1ff; border-color: #eef1ff; color: #111522 }
+  .choose:hover:not(:disabled) { background: #fff; border-color: #fff }
+
+  .selection {
+    display: none;
+    margin: 0 16px 16px;
+    border: 1px solid var(--line);
+    border-radius: 13px;
+    background: var(--surface-2);
+    overflow: hidden;
+  }
+
+  .selection.show { display: block }
+  .selection-head { display: flex; align-items: center; gap: 14px; padding: 13px 16px; border-bottom: 1px solid var(--line) }
+  .selection-title { min-width: 0; flex: 1 }
+  .selection-title strong { display: block; font-size: 13.5px }
+  .selection-title span { display: block; margin-top: 2px; color: var(--muted); font-size: 12px }
+  .text-button { min-height: 32px; padding: 4px 9px; border: 0; background: transparent; color: var(--muted); font-size: 12px }
+  .text-button:hover:not(:disabled) { color: var(--text); background: rgba(255,255,255,.04); transform: none }
+
+  .file-list { max-height: 170px; overflow: auto }
+  .file-row { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 16px; border-bottom: 1px solid rgba(40, 47, 60, .72); font-size: 12.5px }
+  .file-row:last-child { border-bottom: 0 }
+  .file-row svg { color: var(--muted) }
+  .file-row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+  .file-row .tag { color: var(--muted); font-size: 11px }
+
+  .controls { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 12px; align-items: stretch; padding: 16px; border-top: 1px solid var(--line); background: #0e1117 }
+
+  .option {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    background: var(--surface);
+    cursor: pointer;
+  }
+
+  .option input { position: absolute; opacity: 0; pointer-events: none }
+  .switch { position: relative; flex: none; width: 33px; height: 20px; border-radius: 99px; background: #363d49; transition: background .15s }
+  .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: white; box-shadow: 0 2px 5px rgba(0,0,0,.35); transition: transform .16s }
+  .option input:checked + .switch { background: var(--blue) }
+  .option input:checked + .switch::after { transform: translateX(13px) }
+  .option-copy { min-width: 0 }
+  .option-copy strong { display: block; font-size: 12.5px; line-height: 1.25 }
+  .option-copy span { display: block; overflow: hidden; margin-top: 2px; color: var(--muted); font-size: 11px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap }
+
+  .actions { display: flex; gap: 8px; align-items: stretch }
+  .folder-button { min-height: 100%; color: #cbd2de; white-space: nowrap }
+  .convert { min-width: 126px; border-color: transparent; color: #0b1013; background: linear-gradient(100deg, var(--blue), var(--cyan)); box-shadow: 0 10px 30px rgba(83, 103, 255, .14) }
+  .convert:hover:not(:disabled) { border-color: transparent; background: linear-gradient(100deg, #8291ff, #65e5d1) }
+
+  .engine { display: flex; align-items: center; gap: 9px; margin: 13px 3px 0; color: var(--muted); font-size: 12px }
+  .engine-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--amber) }
+  .engine-dot.run { animation: pulse 1.1s infinite }
+  .engine-dot.ready { background: var(--green); animation: none }
+  .engine-dot.error { background: var(--red); animation: none }
+  @keyframes pulse { 50% { opacity: .28 } }
+
+  .results { display: none; margin-top: 18px }
+  .results.show { display: block }
+  .results h2 { margin: 0 0 10px 2px; font-size: 14px; letter-spacing: -.01em }
+
+  .job { margin-bottom: 10px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); overflow: hidden }
+  .job-main { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 13px 15px }
+  .job-dot { width: 9px; height: 9px; border-radius: 50%; background: #4c5564 }
+  .job-dot.run { background: var(--blue); animation: pulse .9s infinite }
+  .job-dot.ok { background: var(--green) }
+  .job-dot.error { background: var(--red) }
+  .job-name { overflow: hidden; font-weight: 650; font-size: 13.5px; text-overflow: ellipsis; white-space: nowrap }
+  .job-meta { margin-top: 2px; color: var(--muted); font-size: 11.5px }
+  .download { min-height: 34px; padding: 5px 11px; border-color: rgba(93, 222, 157, .25); color: #96ecc2; background: rgba(93, 222, 157, .08); font-size: 12px }
+
+  .log {
+    display: none;
+    max-height: 250px;
+    margin: 0;
+    overflow: auto;
+    border-top: 1px solid var(--line);
+    padding: 12px 15px;
+    color: #99a4b5;
+    background: #090b0f;
+    font: 11.5px/1.55 "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    white-space: pre-wrap;
+  }
+  .log.show { display: block }
+
+  .notes { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 18px }
+  .note { padding: 15px 16px; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); background: rgba(17, 20, 27, .64); font-size: 12.5px }
+  .note strong { display: block; margin-bottom: 4px; color: #dfe4ec; font-size: 12.5px }
+  .note code { color: #cbd3e0 }
+
+  @media (max-width: 780px) {
+    .shell { width: min(100% - 24px, 980px); padding-top: 26px }
+    header { display: block }
+    .privacy { margin-top: 16px }
+    .drop { grid-template-columns: auto 1fr; padding: 22px; min-height: 150px }
+    .drop .choose { grid-column: 1 / -1; width: 100% }
+    .controls { grid-template-columns: 1fr }
+    .actions { display: grid; grid-template-columns: 1fr 1fr }
+    .folder-button, .convert { min-height: 42px }
+  }
+
+  @media (max-width: 520px) {
+    .drop { display: block; text-align: center }
+    .drop-icon { margin: 0 auto 14px }
+    .drop .choose { margin-top: 17px }
+    .notes { grid-template-columns: 1fr }
+    .job-main { grid-template-columns: auto minmax(0,1fr) }
+    .job-main .download { grid-column: 1 / -1 }
+  }
+</style>
+</head>
+<body>
+<main class="shell">
+  <header>
+    <div>
+      <div class="eyebrow">Browser converter</div>
+      <h1>MAX <span>→ GLB</span></h1>
+      <p class="lede">Convert Autodesk 3ds Max scenes into portable binary glTF. Geometry, hierarchy, transforms, UVs, supported materials, and supplied textures are packaged into one <code>.glb</code>.</p>
+    </div>
+    <div class="privacy" title="Files stay in this browser tab">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 10V8a5 5 0 0 1 10 0v2m-9 0h8a2 2 0 0 1 2 2v7H6v-7a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Local processing · no upload
+    </div>
+  </header>
+
+  <section class="panel" aria-label="Converter">
+    <div class="drop" id="drop">
+      <div class="drop-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 17v3h14v-3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div>
+        <h2>Drop MAX files, folders, or ZIPs</h2>
+        <p>Add loose <code>.max</code> files or several <code>.zip</code> packages containing scenes, textures, and optional source <code>.glb</code> files.</p>
+      </div>
+      <label class="button choose" for="files">Choose files</label>
+      <input id="files" type="file" accept=".max,.zip,.glb,.png,.jpg,.jpeg,.webp" multiple>
+    </div>
+
+    <div class="selection" id="selection">
+      <div class="selection-head">
+        <div class="selection-title">
+          <strong id="selectionCount">No files selected</strong>
+          <span id="selectionHint">Add at least one MAX file</span>
+        </div>
+        <button class="text-button" id="clear" type="button">Clear</button>
+      </div>
+      <div class="file-list" id="fileList"></div>
+    </div>
+
+    <div class="controls">
+      <label class="option">
+        <input type="checkbox" id="extras">
+        <span class="switch" aria-hidden="true"></span>
+        <span class="option-copy"><strong>Scene extras</strong><span>Cameras, lights, and empty groups</span></span>
+      </label>
+      <label class="option">
+        <input type="checkbox" id="khr" checked>
+        <span class="switch" aria-hidden="true"></span>
+        <span class="option-copy"><strong>Glass extensions</strong><span>KHR transmission and IOR</span></span>
+      </label>
+      <label class="option">
+        <input type="checkbox" id="doubleSided" checked>
+        <span class="switch" aria-hidden="true"></span>
+        <span class="option-copy"><strong>Double-sided surfaces</strong><span>Show room shells from inside</span></span>
+      </label>
+      <div class="actions">
+        <label class="button folder-button" for="folder">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 6h7l2 2h9v10H3V6Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+          Asset folder
+        </label>
+        <input id="folder" type="file" webkitdirectory directory multiple>
+        <button class="convert" id="convert" type="button" disabled>Convert</button>
+      </div>
+    </div>
+  </section>
+
+  <div class="engine" role="status" aria-live="polite">
+    <span class="engine-dot run" id="engineDot"></span>
+    <span id="engineText">Starting conversion engine… You can select files now.</span>
+  </div>
+
+  <section class="results" id="results" aria-live="polite">
+    <h2>Conversions</h2>
+    <div id="jobs"></div>
+    <pre class="log" id="log"></pre>
+  </section>
+
+  <div class="notes">
+    <div class="note"><strong>Folders and ZIPs</strong>Add loose folders or multiple ZIP packages. Their contents share one workspace, so a MAX in one ZIP can resolve textures from another.</div>
+    <div class="note"><strong>Geometry support</strong>Editable meshes, native Box/Plane/Sphere/Cylinder/Cone/Torus primitives, and Shell source meshes are reconstructed. Other plug-in objects are reported in the log.</div>
+  </div>
+</main>
+
+<script type="text/x-python" id="embedded-py">#!/usr/bin/env python3
+"""max_to_glb.py - Convert Autodesk 3DS MAX (.max) to binary glTF (.glb) format.
+
+Standalone converter - no Blender dependency required.
+Adapted from the Blender MAX importer plugin by Sebastian Schrand / Jens M. Plonka.
+
+Usage: python max_to_glb.py input.max [output.glb] [--source-glb original.glb]
+"""
+
+import io
+import gc
+import os
+import re
+import sys
+import math
+import zlib
+import array
+import json
+import struct
+
+###############################################################################
+# Constants
+###############################################################################
+
+MAGIC = b'\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1'
+MIN_FILE_SIZE = 1536
+UNKNOWN_SIZE = 0x7FFFFFFF
+MAXFILE_SIZE = 0x7FFFFFFFFFFFFFFF
+MAXREGSECT = 0xFFFFFFFA
+DIFSECT = 0xFFFFFFFC
+FATSECT = 0xFFFFFFFD
+ENDOFCHAIN = 0xFFFFFFFE
+FREESECT = 0xFFFFFFFF
+MAX_STREAM = 2
+ROOT_STORE = 5
+
+TYP_VALUE = {0x100, 0x2513}
+TYP_REFS = {0x1040, 0x2034, 0x2035}
+TYP_SHORT = {0x103, 0x105, 0x99C, 0x2500, 0x3005}
+TYP_LINK = {0x1020, 0x1030, 0x1050, 0x1080, 0x3002, 0x4003}
+TYP_NAME = {0x340, 0x456, 0x962, 0x10A0, 0x1010, 0x1230, 0x4001}
+TYP_ARRAY = {0x102, 0x96A, 0x96B, 0x96C, 0x2501, 0x2503, 0x2504, 0x2505, 0x2511}
+INVALID_NAME = re.compile('^[0-9].*')
+UNPACK_BOX_DATA = struct.Struct('<HIHHBff').unpack_from
+
+FLOAT_POINT = 0x71F11549498702E7
+MATRIX_POS = 0xFFEE238A118F7E02
+MATRIX_ROT = 0x3A90416731381913
+MATRIX_SCL = 0xFEEE238B118F7C01
+BIPED_OBJ = 0x0000000000009125
+BIPED_ANIM = 0x78C6B2A6B147369
+EDIT_MESH = 0x00000000E44F10B3
+EDIT_POLY = 0x192F60981BF8338D
+POLY_MESH = 0x000000005D21369A
+DUMMY = 0x0000000000876234
+PLANE = 0x77566F65081F1DFC
+CONE = 0x00000000A86C23DD
+
+SKIPPABLE = {
+    0x0000000000001002, 0x0000000000001011, 0x0000000000001013,
+    0x0000000000001020, 0x0000000000001040, 0x0000000000001065,
+    0x0000000000001097, 0x0000000000001999, 0x0000000000002013,
+    0x05622B0D69011E82, 0x12A822FB76A11646, 0x1EB3430074F93B07,
+    0x2ECCA84028BF6E8D, 0x3BDB0E0C628140F6, 0x4E9B599047DB14EF,
+    0x522E47057BF61478, 0x5FD602DF3C5575A1,
+}
+
+# Material type IDs
+LAYER_MTL = 0x8425554E65486584
+SURF_MTL = 0x62F74B4C7E73161F
+RAYT_MTL = 0x329B106E27190FF4
+PHYS_MTL = 0xDEADC0013D6B1CEC
+CORO_MTL = 0x448931DD70BE6506
+ARCH_MTL = 0x4A16365470B05735
+VRAY_MTL = 0x7034695C37BF3F2F
+VTWO_MTL = 0x11731B4B6066686A
+
+###############################################################################
+# Global State
+###############################################################################
+
+CONFIG = []
+CLS_DATA = []
+DLL_DIR_LIST = []
+CLS_DIR3_LIST = []
+VID_PST_QUE = []
+SCENE_LIST = []
+META_DATA = []
+_OPEN_CHUNK_STREAMS = []
+_RAW_VIEW_THRESHOLD = 64 * 1024
+
+
+def _release_chunk_streams(clear_chunks=False):
+    """Release zero-copy OLE stream buffers once scene extraction is finished."""
+    global CONFIG, CLS_DATA, DLL_DIR_LIST, CLS_DIR3_LIST, VID_PST_QUE, SCENE_LIST
+    global META_DATA, _OPEN_CHUNK_STREAMS
+    if clear_chunks:
+        CONFIG = []
+        CLS_DATA = []
+        DLL_DIR_LIST = []
+        CLS_DIR3_LIST = []
+        VID_PST_QUE = []
+        SCENE_LIST = []
+        META_DATA = []
+        gc.collect()
+    streams, _OPEN_CHUNK_STREAMS = _OPEN_CHUNK_STREAMS, []
+    for stream, view in streams:
+        try:
+            view.release()
+        except Exception:
+            pass
+        try:
+            stream.close()
+        except BufferError:
+            # A traceback may temporarily retain a derived view after a parse
+            # error. The stream will close when that traceback is collected.
+            pass
+    gc.collect()
+
+###############################################################################
+# Binary Readers
+###############################################################################
+
+def i8(data):
+    return data if data.__class__ is int else data[0]
+
+def i16(data, offset=0):
+    return struct.unpack("<H", data[offset:offset + 2])[0]
+
+def i32(data, offset=0):
+    return struct.unpack("<I", data[offset:offset + 4])[0]
+
+def get_byte(data, offset=0):
+    size = offset + 1
+    return struct.unpack('<B', data[offset:size])[0], size
+
+def get_short(data, offset=0):
+    size = offset + 2
+    return struct.unpack('<H', data[offset:size])[0], size
+
+def get_long(data, offset=0):
+    size = offset + 4
+    return struct.unpack('<I', data[offset:size])[0], size
+
+def get_float(data, offset=0):
+    size = offset + 4
+    return struct.unpack('<f', data[offset:size])[0], size
+
+def get_bytes(data, offset=0, count=1):
+    size = offset + count
+    return struct.unpack('<' + 'B' * count, data[offset:size]), size
+
+def get_shorts(data, offset=0, count=1):
+    size = offset + count * 2
+    return struct.unpack('<' + 'H' * count, data[offset:size]), size
+
+def get_longs(data, offset=0, count=1):
+    size = offset + count * 4
+    return struct.unpack('<' + 'I' * count, data[offset:size]), size
+
+def get_floats(data, offset=0, count=1):
+    size = offset + count * 4
+    return struct.unpack('<' + 'f' * count, data[offset:size]), size
+
+def _clsid(clsid):
+    assert len(clsid) == 16
+    if not clsid.strip(b"\0"):
+        return ""
+    return (("%08X-%04X-%04X-%02X%02X-" + "%02X" * 6) %
+            ((i32(clsid, 0), i16(clsid, 4), i16(clsid, 6)) +
+            tuple(map(i8, clsid[8:16]))))
+
+###############################################################################
+# OLE2 Parser
+###############################################################################
+
+def is_maxfile(filename):
+    if hasattr(filename, 'read'):
+        header = filename.read(len(MAGIC))
+        filename.seek(0)
+    elif isinstance(filename, bytes) and len(filename) >= MIN_FILE_SIZE:
+        header = filename[:len(MAGIC)]
+    else:
+        with open(filename, 'rb') as fp:
+            header = fp.read(len(MAGIC))
+    return header == MAGIC
+
+
+class MaxStream(io.BytesIO):
+    def __init__(self, fp, sect, size, offset, sectorsize, fat, filesize):
+        if size == UNKNOWN_SIZE:
+            size = len(fat) * sectorsize
+        nb_sectors = (size + (sectorsize - 1)) // sectorsize
+        # Build the stream directly in its BytesIO buffer.  The old list + join
+        # implementation temporarily held two full stream copies (and BytesIO
+        # could add a third), which exhausts WebAssembly memory on large scenes.
+        io.BytesIO.__init__(self)
+        written = 0
+        for i in range(nb_sectors):
+            try:
+                fp.seek(offset + sectorsize * sect)
+            except:
+                break
+            sector_data = fp.read(sectorsize)
+            if not sector_data:
+                break
+            remaining = size - written
+            if remaining <= 0:
+                break
+            if len(sector_data) > remaining:
+                sector_data = sector_data[:remaining]
+            self.write(sector_data)
+            written += len(sector_data)
+            try:
+                sect = fat[sect] & FREESECT
+            except IndexError:
+                break
+        self.size = written
+        self.seek(0)
+
+
+class MaxFileDirEntry:
+    STRUCT_DIRENTRY = '<64sHBBIII16sIQQIII'
+    DIRENTRY_SIZE = 128
+    assert struct.calcsize(STRUCT_DIRENTRY) == DIRENTRY_SIZE
+
+    def __init__(self, entry, sid, maxfile):
+        self.sid = sid
+        self.maxfile = maxfile
+        self.kids = []
+        self.kids_dict = {}
+        self.used = False
+        (
+            self.name_raw, self.namelength, self.entry_type, self.color,
+            self.sid_left, self.sid_right, self.sid_child,
+            clsid, self.dwUserFlags, self.createTime, self.modifyTime,
+            self.isectStart, self.sizeLow, self.sizeHigh
+        ) = struct.unpack(MaxFileDirEntry.STRUCT_DIRENTRY, entry)
+        if self.namelength > 64:
+            self.namelength = 64
+        self.name_utf16 = self.name_raw[:(self.namelength - 2)]
+        self.name = maxfile._decode_utf16_str(self.name_utf16)
+        if maxfile.sectorsize == 512:
+            self.size = self.sizeLow
+        else:
+            self.size = self.sizeLow + (int(self.sizeHigh) << 32)
+        self.clsid = _clsid(clsid)
+        self.is_minifat = False
+        if self.entry_type in (ROOT_STORE, MAX_STREAM) and self.size > 0:
+            if self.size < maxfile.minisectorcutoff and self.entry_type == MAX_STREAM:
+                self.is_minifat = True
+            else:
+                self.is_minifat = False
+            maxfile._check_duplicate_stream(self.isectStart, self.is_minifat)
+        self.sect_chain = None
+
+    def build_sect_chain(self, maxfile):
+        if self.sect_chain:
+            return
+        if self.entry_type not in (ROOT_STORE, MAX_STREAM) or self.size == 0:
+            return
+        self.sect_chain = list()
+        if self.is_minifat and not maxfile.minifat:
+            maxfile.loadminifat()
+        next_sect = self.isectStart
+        while next_sect != ENDOFCHAIN:
+            self.sect_chain.append(next_sect)
+            if self.is_minifat:
+                next_sect = maxfile.minifat[next_sect]
+            else:
+                next_sect = maxfile.fat[next_sect]
+
+    def build_storage_tree(self):
+        if self.sid_child != FREESECT:
+            self.append_kids(self.sid_child)
+            self.kids.sort()
+
+    def append_kids(self, child_sid):
+        if child_sid == FREESECT:
+            return
+        child = self.maxfile._load_direntry(child_sid)
+        if child.used:
+            return
+        child.used = True
+        self.append_kids(child.sid_left)
+        self.kids.append(child)
+        self.kids_dict[child.name.lower()] = child
+        self.append_kids(child.sid_right)
+        child.build_storage_tree()
+
+    def __eq__(self, other): return self.name == other.name
+    def __lt__(self, other): return self.name < other.name
+    def __ne__(self, other): return not self.__eq__(other)
+    def __le__(self, other): return self.__eq__(other) or self.__lt__(other)
+
+
+class ImportMaxFile:
+    def __init__(self, filename=None):
+        self._filesize = None
+        self.byte_order = None
+        self.directory_fp = None
+        self.direntries = None
+        self.dll_version = None
+        self.fat = None
+        self.first_difat_sector = None
+        self.first_dir_sector = None
+        self.first_mini_fat_sector = None
+        self.fp = None
+        self.header_clsid = None
+        self.header_signature = None
+        self.mini_sector_shift = None
+        self.mini_sector_size = None
+        self.mini_stream_cutoff_size = None
+        self.minifat = None
+        self.minifatsect = None
+        self.minisectorcutoff = None
+        self.minisectorsize = None
+        self.ministream = None
+        self.minor_version = None
+        self.nb_sect = None
+        self.num_difat_sectors = None
+        self.num_dir_sectors = None
+        self.num_fat_sectors = None
+        self.num_mini_fat_sectors = None
+        self.reserved1 = None
+        self.reserved2 = None
+        self.root = None
+        self.sector_shift = None
+        self.sector_size = None
+        self.transaction_signature_number = None
+        if filename:
+            self.open(filename)
+
+    def __enter__(self): return self
+    def __exit__(self, *args): self.close()
+
+    def _decode_utf16_str(self, utf16_str, errors='replace'):
+        return utf16_str.decode('UTF-16LE', errors)
+
+    def open(self, filename):
+        if hasattr(filename, 'read'):
+            self.fp = filename
+        elif isinstance(filename, bytes) and len(filename) >= MIN_FILE_SIZE:
+            self.fp = io.BytesIO(filename)
+        else:
+            self.fp = open(filename, 'rb')
+        self.fp.seek(0, os.SEEK_END)
+        try:
+            self._filesize = self.fp.tell()
+        finally:
+            self.fp.seek(0)
+        self._used_streams_fat = []
+        self._used_streams_minifat = []
+        header = self.fp.read(512)
+        fmt_header = '<8s16sHHHHHHLLLLLLLLLL'
+        header_size = struct.calcsize(fmt_header)
+        (
+            self.header_signature, self.header_clsid,
+            self.minor_version, self.dll_version, self.byte_order,
+            self.sector_shift, self.mini_sector_shift,
+            self.reserved1, self.reserved2,
+            self.num_dir_sectors, self.num_fat_sectors,
+            self.first_dir_sector, self.transaction_signature_number,
+            self.mini_stream_cutoff_size, self.first_mini_fat_sector,
+            self.num_mini_fat_sectors, self.first_difat_sector,
+            self.num_difat_sectors
+        ) = struct.unpack(fmt_header, header[:header_size])
+        self.sector_size = 2**self.sector_shift
+        self.mini_sector_size = 2**self.mini_sector_shift
+        if self.mini_stream_cutoff_size != 0x1000:
+            self.mini_stream_cutoff_size = 0x1000
+        self.nb_sect = ((self._filesize + self.sector_size - 1) // self.sector_size) - 1
+        self.header_clsid = _clsid(header[8:24])
+        self.sectorsize = self.sector_size
+        self.minisectorsize = self.mini_sector_size
+        self.minisectorcutoff = self.mini_stream_cutoff_size
+        self._check_duplicate_stream(self.first_dir_sector)
+        if self.num_mini_fat_sectors:
+            self._check_duplicate_stream(self.first_mini_fat_sector)
+        if self.num_difat_sectors:
+            self._check_duplicate_stream(self.first_difat_sector)
+        self.loadfat(header)
+        self.loaddirectory(self.first_dir_sector)
+        self.minifatsect = self.first_mini_fat_sector
+
+    def close(self):
+        # Parsed OLE streams are independent BytesIO buffers.  Release the
+        # directory/ministream and sector tables before mesh expansion instead
+        # of retaining them for the lifetime of the conversion.
+        for name in ('directory_fp', 'ministream'):
+            stream = getattr(self, name, None)
+            if stream is not None and stream is not self.fp:
+                try:
+                    stream.close()
+                except BufferError:
+                    pass
+            setattr(self, name, None)
+        if self.fp is not None:
+            try:
+                self.fp.close()
+            finally:
+                self.fp = None
+        self.fat = None
+        self.minifat = None
+        self.direntries = []
+        self.root = None
+        self._used_streams_fat = []
+        self._used_streams_minifat = []
+
+    def _check_duplicate_stream(self, first_sect, minifat=False):
+        if minifat:
+            used_streams = self._used_streams_minifat
+        else:
+            if first_sect in (DIFSECT, FATSECT, ENDOFCHAIN, FREESECT):
+                return
+            used_streams = self._used_streams_fat
+        if first_sect not in used_streams:
+            used_streams.append(first_sect)
+
+    def sector_array(self, sect):
+        ary = array.array('I', sect)
+        if sys.byteorder == 'big':
+            ary.byteswap()
+        return ary
+
+    def loadfat_sect(self, sect):
+        if isinstance(sect, array.array):
+            fat1 = sect
+        else:
+            fat1 = self.sector_array(sect)
+        isect = None
+        for isect in fat1:
+            isect = isect & FREESECT
+            if isect == ENDOFCHAIN or isect == FREESECT:
+                break
+            sector = self.getsect(isect)
+            nextfat = self.sector_array(sector)
+            self.fat = self.fat + nextfat
+        return isect
+
+    def loadfat(self, header):
+        sect = header[76:512]
+        self.fat = array.array('I')
+        self.loadfat_sect(sect)
+        if self.num_difat_sectors != 0:
+            nb_difat_sectors = (self.sectorsize // 4) - 1
+            nb_difat = (self.num_fat_sectors - 109 + nb_difat_sectors - 1) // nb_difat_sectors
+            isect_difat = self.first_difat_sector
+            for i in range(nb_difat):
+                sector_difat = self.getsect(isect_difat)
+                difat = self.sector_array(sector_difat)
+                self.loadfat_sect(difat[:nb_difat_sectors])
+                isect_difat = difat[nb_difat_sectors]
+        if len(self.fat) > self.nb_sect:
+            self.fat = self.fat[:self.nb_sect]
+
+    def loadminifat(self):
+        stream_size = self.num_mini_fat_sectors * self.sector_size
+        nb_minisectors = (self.root.size + self.mini_sector_size - 1) // self.mini_sector_size
+        sect = self._open(self.minifatsect, stream_size, force_FAT=True).read()
+        self.minifat = self.sector_array(sect)
+        self.minifat = self.minifat[:nb_minisectors]
+
+    def getsect(self, sect):
+        try:
+            self.fp.seek(self.sectorsize * (sect + 1))
+        except:
+            print('IndexError: Sector index out of range')
+        return self.fp.read(self.sectorsize)
+
+    def loaddirectory(self, sect):
+        self.directory_fp = self._open(sect, force_FAT=True)
+        max_entries = self.directory_fp.size // 128
+        self.direntries = [None] * max_entries
+        self._load_direntry(0)
+        self.root = self.direntries[0]
+        self.root.build_storage_tree()
+
+    def _load_direntry(self, sid):
+        if self.direntries[sid] is not None:
+            return self.direntries[sid]
+        self.directory_fp.seek(sid * 128)
+        entry = self.directory_fp.read(128)
+        self.direntries[sid] = MaxFileDirEntry(entry, sid, self)
+        return self.direntries[sid]
+
+    def _open(self, start, size=UNKNOWN_SIZE, force_FAT=False):
+        if size < self.minisectorcutoff and not force_FAT:
+            if not self.ministream:
+                self.loadminifat()
+                size_ministream = self.root.size
+                self.ministream = self._open(self.root.isectStart, size_ministream, force_FAT=True)
+            return MaxStream(fp=self.ministream, sect=start, size=size,
+                             offset=0, sectorsize=self.minisectorsize,
+                             fat=self.minifat, filesize=self.ministream.size)
+        else:
+            return MaxStream(fp=self.fp, sect=start, size=size,
+                             offset=self.sectorsize, sectorsize=self.sectorsize,
+                             fat=self.fat, filesize=self._filesize)
+
+    def _find(self, filename):
+        if isinstance(filename, str):
+            filename = filename.split('/')
+        node = self.root
+        for name in filename:
+            for kid in node.kids:
+                if kid.name.lower() == name.lower():
+                    break
+            node = kid
+        return node.sid
+
+    def openstream(self, filename):
+        sid = self._find(filename)
+        entry = self.direntries[sid]
+        return self._open(entry.isectStart, entry.size)
+
+
+###############################################################################
+# Chunk System
+###############################################################################
+
+class MaxChunk(object):
+    __slots__ = "superid", "types", "level", "number", "size", "data"
+
+    def __init__(self, superid, types, level, number, size, data=None):
+        self.superid = superid
+        self.types = types
+        self.data = data
+        self.number = number
+        self.level = level
+        self.size = size
+
+    def __str__(self):
+        return "%s[%4x]%04X:%s" % ("" * self.level, self.number, self.types, self.data)
+
+
+class ByteArrayChunk(MaxChunk):
+    def __init__(self, superid, types, level, number, size, data):
+        MaxChunk.__init__(self, superid, types, level, number, size, data)
+        self.superid = superid
+        self.children = []
+
+    def get_first(self, types):
+        return None
+
+    def set(self, data, fmt, start, end):
+        try:
+            self.data = struct.unpack(fmt, data[start:end])
+        except:
+            self.data = bytes(data)
+
+    def set_string(self, data):
+        data = bytes(data)
+        try:
+            self.data = data.decode('UTF-16LE')
+        except:
+            self.data = data.decode('UTF-8', 'replace')
+        finally:
+            self.data = data.decode('UTF-16LE', 'ignore')
+
+    def set_meta_data(self, data):
+        data = bytes(data)
+        metadict = {}
+        metakey = None
+        try:
+            mdatazip = list(zip(*[iter(data.split(b'\x00\x00\x00'))]*2))
+            metadata = list(filter(lambda tpl: b'' not in tpl, mdatazip))
+            for mdata in metadata:
+                header = mdata[0]
+                imgkey = header[-1]
+                mtitle = b''.join(mdata[1].split(b'\x00')).decode('UTF-8', 'ignore')
+                if len(header) > ROOT_STORE:
+                    size = len(header[:-ROOT_STORE])
+                    head = struct.unpack('<' + 'IH' * int(size / 6), header[:size])
+                    meta = get_longs(header, size, len(header[size:]) // 4)[0]
+                    metakey = meta[0]
+                    metadict[metakey] = [(head[0], head[1])]
+                elif metadict and metakey:
+                    metadict[metakey].insert(-imgkey, (imgkey, mtitle))
+        except:
+            self.data = data
+        finally:
+            self.data = metadict
+
+    def set_data(self, data):
+        if self.types in TYP_NAME:
+            self.set_string(data)
+        elif self.types in TYP_LINK:
+            self.set(data, '<I', 0, len(data))
+        elif self.types in TYP_VALUE:
+            self.set(data, '<f', 0, len(data))
+        elif self.types in TYP_REFS:
+            self.set(data, '<' + 'I' * int(len(data) / 4), 0, len(data))
+        elif self.types in TYP_SHORT:
+            self.set(data, '<' + 'H' * int(len(data) / 2), 0, len(data))
+        elif self.types in TYP_ARRAY:
+            self.set(data, '<' + 'f' * int(len(data) / 4), 0, len(data))
+        elif self.types == 0x2510:
+            self.set(data, '<' + 'f' * int(len(data) / 4 - 1) + 'I', 0, len(data))
+        else:
+            # Large mesh payloads remain zero-copy views of the Scene stream;
+            # small leaves are materialised to avoid thousands of tiny views.
+            self.data = data if len(data) >= _RAW_VIEW_THRESHOLD else bytes(data)
+
+
+class ClassIDChunk(ByteArrayChunk):
+    def __init__(self, superid, types, level, number, size, data):
+        MaxChunk.__init__(self, superid, types, level, number, size, data)
+        self.superid = 0x5
+        self.dll = None
+
+    def set_data(self, data):
+        if self.types == 0x2042:
+            self.set_string(data)
+        elif self.types == 0x2060:
+            self.set(data, '<IQI', 0, 16)
+        else:
+            self.data = ":".join("%02x" % c for c in data)
+
+
+class DirectoryChunk(ByteArrayChunk):
+    def __init__(self, superid, types, level, number, size, data):
+        MaxChunk.__init__(self, superid, types, level, number, size, data)
+        self.superid = 0x4
+
+    def set_data(self, data):
+        if self.types in (0x2037, 0x2039):
+            self.set_string(data)
+        else:
+            self.data = bytes(data)
+
+
+class ContainerChunk(MaxChunk):
+    def __init__(self, superid, types, level, number, size, data, primReader=ByteArrayChunk):
+        MaxChunk.__init__(self, superid, types, level, number, size, data)
+        self.primReader = primReader
+        self.superid = superid
+
+    def __str__(self):
+        return "%s[%4x]%04X" % ("" * self.level, self.number, self.types)
+
+    def get_first(self, types):
+        for child in self.children:
+            if child.types == types:
+                return child
+        return None
+
+    def set_data(self, data):
+        reader = ChunkReader()
+        try:
+            self.children = reader.get_chunks(self.superid, data, self.level + 1,
+                                              ContainerChunk, self.primReader)
+        finally:
+            self.data = None
+
+
+class SceneChunk(ContainerChunk):
+    """Scene container whose nested payload is decoded only when accessed.
+
+    Native MAX scenes can contain hundreds of megabytes of opaque plug-in state.
+    Eagerly recursing into every object both wastes browser memory and attempts to
+    interpret private plug-in blobs that are irrelevant to mesh export.
+    """
+
+    def __init__(self, superid, types, level, number, size, data,
+                 primReader=ByteArrayChunk):
+        MaxChunk.__init__(self, superid, types, level, number, size, None)
+        self.primReader = primReader
+        self.superid = 0x2
+        self._raw = None
+        self._children = None
+
+    def __str__(self):
+        return "%s[%4x]%s" % ("" * self.level, self.number, get_cls_name(self))
+
+    def set_data(self, data):
+        self._raw = data
+
+    @property
+    def children(self):
+        if self._children is None:
+            raw = self._raw
+            self._children = []
+            if raw is not None and len(raw):
+                reader = ChunkReader()
+                self._children = reader.get_chunks(
+                    self.superid, raw, self.level + 1,
+                    SceneChunk, ByteArrayChunk)
+            self._raw = None
+        return self._children
+
+    @children.setter
+    def children(self, value):
+        self._children = value
+
+
+class ChunkReader(object):
+    def __init__(self, name=None):
+        self.name = name
+
+    def get_chunks(self, superid, data, level, conReader, primReader):
+        if not isinstance(data, memoryview):
+            data = memoryview(data)
+        chunks = []
+        offset = 0
+        if len(data) > ROOT_STORE and level == 0:
+            root, step = get_short(data, 0)
+            long, step = get_long(data, step)
+            if self.name:
+                print("  reading '%s'..." % self.name, len(data))
+            if root == 0x8B1F:
+                long, step = get_long(data, step)
+                if long in (0xB000000, 0xA040000, 0x8000001E):
+                    data = memoryview(zlib.decompress(data, zlib.MAX_WBITS | 32))
+            elif superid in (0xA, 0xB):
+                chunk = primReader(superid, root, level, 1, len(data), data)
+                chunk.set_meta_data(data)
+                return [chunk]
+        while offset < len(data):
+            if len(data) - offset < 6:
+                # Some streams carry a few trailing alignment bytes.
+                break
+            offset, chunk = self.get_next_chunk(superid, data, offset, level,
+                                                len(chunks), conReader, primReader)
+            chunks.append(chunk)
+        return chunks
+
+    def get_next_chunk(self, superid, data, offset, level, number, conReader, primReader):
+        header = 6
+        typ, siz = struct.unpack_from("<Hi", data, offset)
+        chunksize = siz & UNKNOWN_SIZE
+        if siz == 0:
+            siz, = struct.unpack_from("<q", data, offset + header)
+            header += 8
+            chunksize = siz & MAXFILE_SIZE
+        if chunksize < header or offset + chunksize > len(data):
+            raise ValueError(
+                "Invalid MAX chunk size %d at offset %d (remaining %d)" %
+                (chunksize, offset, len(data) - offset))
+        if siz < 0:
+            chunk = conReader(superid, typ, level, number, chunksize, data, primReader)
+        else:
+            chunk = primReader(superid, typ, level, number, chunksize, data)
+        chunkdata = data[offset + header:offset + chunksize]
+        chunk.set_data(chunkdata)
+        return offset + chunksize, chunk
+
+
+###############################################################################
+# Data Classes
+###############################################################################
+
+class Mesh3d(object):
+    def __init__(self):
+        self.verts = []
+        self.faces = []
+        self.polys = []
+        self.cords = []
+        self.uvids = []
+        self.maps = []
+        self.mats = []
+        self.points = None
+        self.tris = None
+
+    def set(self, indices):
+        for point in indices:
+            self.mats.append(point.group)
+            self.faces.append(point.points)
+
+
+class Point3d(object):
+    def __init__(self):
+        self.points = None
+        self.flags = 0
+        self.group = 0
+
+
+class PackedPolyData(object):
+    """Compact random-access view of count-prefixed polygon index records."""
+    __slots__ = ('data', 'offsets')
+
+    def __init__(self, data):
+        self.data = data
+        self.offsets = array.array('I')
+        offset = 0
+        size = len(data)
+        while offset + 4 <= size:
+            count, _ = get_long(data, offset)
+            end = offset + 4 + count * 4
+            if end > size:
+                break
+            self.offsets.append(offset)
+            offset = end
+
+    def __len__(self):
+        return len(self.offsets)
+
+    def __getitem__(self, index):
+        if index < 0:
+            index += len(self.offsets)
+        if index < 0 or index >= len(self.offsets):
+            raise IndexError(index)
+        offset = self.offsets[index]
+        count, offset = get_long(self.data, offset)
+        values, _ = get_longs(self.data, offset, count)
+        return values
+
+
+class PackedPolyLoops(object):
+    """Compact view matching get_poly_loops' fixed serialized records."""
+    __slots__ = ('data', 'count')
+
+    def __init__(self, data):
+        self.data = data
+        # One u32 header followed by records consumed as 6 u32 values by the
+        # legacy decoder: count, p0, p1, loop, spare, flags.  The original
+        # importer treated the first value as a header and consumed every
+        # complete record after it, so preserve that behavior here.
+        self.count = max(0, (len(data) - 4) // 24)
+
+    def __len__(self):
+        return self.count
+
+    def __getitem__(self, index):
+        if index < 0:
+            index += self.count
+        if index < 0 or index >= self.count:
+            raise IndexError(index)
+        offset = 4 + index * 24
+        _count, offset = get_long(self.data, offset)
+        point, offset = get_longs(self.data, offset, 2)
+        (loop, spare), offset = get_longs(self.data, offset, 2)
+        _flags, offset = get_long(self.data, offset)
+        return (*point, loop) if spare == FREESECT else point + (loop, spare)
+
+
+class PackedPointFaces(object):
+    """Compact view of variable-size Editable Poly face records.
+
+    The exporter only consumes each record's vertex indices.  Keeping offsets
+    avoids the former Point3d object plus tuple plus list entry for every face.
+    """
+    __slots__ = ('data', 'offsets')
+
+    def __init__(self, data):
+        self.data = data
+        self.offsets = array.array('I')
+        size = len(data)
+        offset = 4 if size >= 4 else size
+        while offset + 4 <= size:
+            record_offset = offset
+            count, offset = get_long(data, offset)
+            points_end = offset + count * 4
+            if points_end + 2 > size:
+                break
+            flags, end = get_short(data, points_end)
+            if flags & 0x01:
+                end += 4
+            if flags & 0x08:
+                end += 2
+            if flags & 0x10:
+                end += 4
+            if flags & 0x20:
+                end += max(0, 2 * (count - 3)) * 4
+            if end > size:
+                break
+            if count:
+                self.offsets.append(record_offset)
+            offset = end
+
+    def __len__(self):
+        return len(self.offsets)
+
+    def __getitem__(self, index):
+        if index < 0:
+            index += len(self.offsets)
+        if index < 0 or index >= len(self.offsets):
+            raise IndexError(index)
+        count, offset = get_long(self.data, self.offsets[index])
+        points, _ = get_longs(self.data, offset, count)
+        return points
+
+
+class PackedFixedFaces(object):
+    """Compact view of Editable Mesh triangle records."""
+    __slots__ = ('data', 'count')
+
+    def __init__(self, data):
+        declared = get_long(data, 0)[0] if len(data) >= 4 else 0
+        self.data = data
+        self.count = min(declared, max(0, (len(data) - 4) // 20))
+
+    def __len__(self):
+        return self.count
+
+    def __getitem__(self, index):
+        if index < 0:
+            index += self.count
+        if index < 0 or index >= self.count:
+            raise IndexError(index)
+        values, _ = get_longs(self.data, 4 + index * 20, 3)
+        return values
+
+
+class PackedUVWFaces(object):
+    """Compact view of count + packed uint32 triangle UV indices."""
+    __slots__ = ('data', 'count')
+
+    def __init__(self, data):
+        declared = get_long(data, 0)[0] if len(data) >= 4 else 0
+        self.data = data
+        self.count = min(declared, max(0, (len(data) - 4) // 12))
+
+    def __len__(self):
+        return self.count
+
+    def __getitem__(self, index):
+        if index < 0:
+            index += self.count
+        if index < 0 or index >= self.count:
+            raise IndexError(index)
+        values, _ = get_longs(self.data, 4 + index * 12, 3)
+        return values
+        self.flag1 = 0
+        self.flag2 = 0
+        self.flag3 = 0
+        self.fbits = []
+
+
+class Material(object):
+    def __init__(self):
+        self.data = {}
+
+    def set(self, name, value):
+        self.data[name] = value
+
+    def get(self, name, default=None):
+        value = self.data.get(name)
+        if value is None:
+            return default
+        return value
+
+
+###############################################################################
+# Scene Helpers
+###############################################################################
+
+def get_node(index):
+    if isinstance(index, tuple):
+        index = index[0]
+    global SCENE_LIST
+    if index < len(SCENE_LIST[0].children):
+        return SCENE_LIST[0].children[index]
+    return None
+
+
+def get_node_parent(node):
+    if node:
+        chunk = node.get_first(0x0960)
+        if chunk is not None:
+            idx, _ = get_long(chunk.data, 0)
+            return get_node(idx)
+    return None
+
+
+def get_node_name(node):
+    if node:
+        name = node.get_first(0x0962)
+        if name:
+            return name.data
+    return None
+
+
+def get_class(chunk):
+    global CLS_DIR3_LIST
+    if chunk.types < len(CLS_DIR3_LIST):
+        return CLS_DIR3_LIST[chunk.types]
+    return None
+
+
+def get_dll(chunk):
+    global DLL_DIR_LIST
+    dll = chunk.get_first(0x2060)
+    if dll:
+        idx = dll.data[0]
+        if idx < len(DLL_DIR_LIST):
+            return DLL_DIR_LIST[idx]
+    return None
+
+
+def get_guid(chunk):
+    clid = get_class(chunk)
+    if clid:
+        guid = clid.get_first(0x2060)
+        if guid is not None:
+            return guid.data[1]
+    return chunk.types
+
+
+def get_super_id(chunk):
+    clid = get_class(chunk)
+    if clid:
+        suid = clid.get_first(0x2060)
+        if suid is not None:
+            return suid.data[2]
+    return 0x0
+
+
+def get_cls_name(chunk):
+    clid = get_class(chunk)
+    if clid and clid.get_first(0x2042):
+        cls_name = clid.get_first(0x2042).data
+        try:
+            return "'%s'" % cls_name
+        except:
+            return "'%r'" % cls_name
+    return u"%04X" % chunk.types
+
+
+def get_references(chunk):
+    references = []
+    if chunk is None:
+        return references
+    refs = chunk.get_first(0x2034)
+    if refs:
+        references = [get_node(idx) for idx in refs.data]
+    return references
+
+
+def get_reference(chunk):
+    references = {}
+    refs = chunk.get_first(0x2035)
+    if refs:
+        offset = 1
+        while offset < len(refs.data):
+            key = refs.data[offset]
+            offset += 1
+            idx = refs.data[offset]
+            offset += 1
+            references[key] = get_node(idx)
+    return references
+
+
+def get_matrix_mesh_material(node):
+    refs = get_reference(node)
+    if refs:
+        prs = refs.get(0, None)
+        msh = refs.get(1, None)
+        mat = refs.get(3, None)
+    else:
+        refs = get_references(node)
+        prs = refs[0]
+        msh = refs[1]
+        mat = refs[3]
+    return prs, msh, mat
+
+
+###############################################################################
+# Stream Readers
+###############################################################################
+
+def read_chunks(maxfile, name, conReader=ContainerChunk, primReader=ByteArrayChunk, superId=None):
+    global _OPEN_CHUNK_STREAMS
+    file = maxfile.openstream(name)
+    scene = file.getbuffer()
+    try:
+        reader = ChunkReader(name)
+        chunks = reader.get_chunks(superId, scene, 0, conReader, primReader)
+    except Exception:
+        try:
+            scene.release()
+        except Exception:
+            pass
+        try:
+            file.close()
+        except BufferError:
+            pass
+        raise
+    _OPEN_CHUNK_STREAMS.append((file, scene))
+    return chunks
+
+
+def read_class_data(maxfile):
+    global CLS_DATA
+    CLS_DATA = read_chunks(maxfile, 'ClassData', superId=6)
+
+def read_class_directory(maxfile):
+    global CLS_DIR3_LIST
+    try:
+        CLS_DIR3_LIST = read_chunks(maxfile, 'ClassDirectory3', ContainerChunk, ClassIDChunk)
+    except:
+        CLS_DIR3_LIST = read_chunks(maxfile, 'ClassDirectory', ContainerChunk, ClassIDChunk)
+    for clsdir in CLS_DIR3_LIST:
+        clsdir.dll = get_dll(clsdir)
+
+def read_config(maxfile):
+    global CONFIG
+    CONFIG = read_chunks(maxfile, 'Config', superId=7)
+
+def read_directory(maxfile):
+    global DLL_DIR_LIST
+    DLL_DIR_LIST = read_chunks(maxfile, 'DllDirectory', ContainerChunk, DirectoryChunk)
+
+def read_video_postqueue(maxfile):
+    global VID_PST_QUE
+    VID_PST_QUE = read_chunks(maxfile, 'VideoPostQueue', superId=8)
+
+
+###############################################################################
+# Geometry Functions
+###############################################################################
+
+def calc_point(data):
+    points = array.array('f')
+    long, offset = get_long(data, 0)
+    while offset + 16 <= len(data):
+        val, offset = get_long(data, offset)
+        flt, offset = get_floats(data, offset, 3)
+        points.extend(flt)
+    return points
+
+
+def calc_point_float(data):
+    points = array.array('f')
+    long, offset = get_long(data, 0)
+    while offset + 12 <= len(data):
+        flt, offset = get_floats(data, offset, 3)
+        points.extend(flt)
+    return points
+
+
+def calc_point_3d(chunk):
+    return PackedPointFaces(chunk.data)
+
+
+def get_point_array(values):
+    verts = array.array('f')
+    if len(values) >= 4:
+        count, offset = get_long(values, 0)
+        while count > 0:
+            floats, offset = get_floats(values, offset, 3)
+            verts.extend(floats)
+            count -= 1
+    return verts
+
+
+def get_mesh_polys(data):
+    # Material IDs are not consumed by the current one-primitive GLB exporter.
+    return PackedFixedFaces(data), array.array('H')
+
+
+def get_face_chunks(chunk):
+    face = ()
+    for cnk in chunk.children:
+        if cnk.types == 0x0110:
+            size, step = get_long(cnk.data, 0)
+            face, step = get_longs(cnk.data, step, size)
+    return face
+
+
+def get_poly_data(chunk):
+    return PackedPolyData(chunk.data)
+
+
+def get_poly_loops(chunk):
+    return PackedPolyLoops(chunk.data)
+
+
+def get_uvw_coords(chunk):
+    return PackedUVWFaces(chunk.data)
+
+
+###############################################################################
+# Material Extraction (adapted from import_max.py)
+###############################################################################
+
+def get_metadata(index):
+    global META_DATA
+    pathdata = META_DATA[0].data if META_DATA else None
+    if pathdata:
+        pathname = pathdata.get(index)
+        if pathname is None:
+            for key, uid in pathdata.items():
+                if index in uid[2]:
+                    return uid[0][1]
+        else:
+            return pathname[0][1]
+    return pathdata
+
+
+def get_property(properties, idx):
+    for child in properties.children:
+        if child.types == 0x100E:
+            if get_short(child.data, 0)[0] == idx:
+                return child
+    return None
+
+
+def get_rgb(colors, idx):
+    prop = get_property(colors, idx)
+    if prop is not None:
+        siz = len(prop.data) - 16
+        rgb, offset = get_floats(prop.data, siz, 3)
+        return (rgb[0], rgb[1], rgb[2])
+    return None
+
+
+def get_color(colors, idx):
+    prop = get_property(colors, idx)
+    if prop is not None:
+        siz = len(prop.data) - 12
+        col, offset = get_floats(prop.data, siz, 3)
+        return (col[0], col[1], col[2])
+    return None
+
+
+def get_value(value, idx):
+    prop = get_property(value, idx)
+    if prop is not None:
+        siz = len(prop.data) - 4
+        val, offset = get_float(prop.data, siz)
+        return val
+    return None
+
+
+def get_parameter(values, fmt):
+    if fmt == 0x1:
+        siz = len(values.data) - 12
+        para, offset = get_floats(values.data, siz, 3)
+    else:
+        siz = len(values.data) - 4
+        para, offset = get_float(values.data, siz)
+    return para
+
+
+def _basename_any(path):
+    """Return the final component of either a Windows or POSIX asset path.
+
+    Pyodide runs with POSIX path semantics, while MAX metadata normally stores
+    backslash-separated Windows paths.  Normalising both separators keeps
+    texture lookup working in the browser.
+    """
+    return re.split(r'[\\/]', str(path).rstrip('\\/'))[-1]
+
+
+def _image_mime(path):
+    ext = os.path.splitext(path)[1].lower()
+    if ext in ('.jpg', '.jpeg'):
+        return 'image/jpeg'
+    if ext == '.webp':
+        return 'image/webp'
+    return 'image/png'
+
+
+def _is_packed_metal_roughness(path):
+    """True only for filenames that explicitly advertise packed glTF MR data.
+
+    A MAX gloss or standalone roughness bitmap is not a glTF metallic-roughness
+    texture: glTF expects roughness in G and metallic in B.  Passing a grayscale
+    gloss map through unchanged can make ordinary walls metallic and very dark.
+    """
+    stem = os.path.splitext(_basename_any(path))[0].casefold()
+    return stem.endswith(('_orm', '_mr', '_rm', '_metalrough',
+                          '_roughmetal', '_metallicroughness'))
+
+
+def get_bitmap(chunk):
+    if chunk is not None:
+        pathstring = matlib = None
+        parameters = get_references(chunk)
+        if len(parameters) >= 2:
+            custom = parameters[1].get_first(0x3)
+            if custom is not None:
+                pathchunk = custom.get_first(0x1230)
+                pathlink = custom.get_first(0x1260)
+                if pathchunk and pathchunk.data:
+                    pathstring = pathchunk.data
+                elif pathlink and pathlink.children:
+                    matlib = pathlink.children[0]
+        if matlib and matlib.data:
+            idsize = len(matlib.data[:-4])
+            metaidx = get_longs(matlib.data, idsize, len(matlib.data[idsize:]) // 4)[0]
+            pathstring = get_metadata(metaidx[0])
+        return pathstring
+    return None
+
+
+def get_texmap(chunk):
+    texpath = None
+    parameters = get_references(chunk)
+    attributes = get_references(parameters[0])
+    properties = get_references(attributes[1])
+    for prop in properties:
+        propname = next(
+            (pc.data.decode("UTF-16", "ignore") for pc in prop.children if pc.types == 1), None)
+        if propname == "filename":
+            view = next(
+                (ck.children[3] for ck in prop.children if ck.types == 3), None)
+            if view:
+                uid = get_long(view.children[0].data, 0)[0]
+                texpath = get_metadata(uid)
+    return texpath
+
+
+def get_material_name(reference):
+    mtlname = ""
+    name_chunk = reference.get_first(0x100)
+    if name_chunk:
+        split_data = name_chunk.data.split(b'@')
+        if len(split_data) >= 2:
+            splitname = b''.join(split_data[1].split(b'\x00'))
+            mtlname = splitname.decode("UTF-8", "ignore")
+    return mtlname
+
+
+def get_standard_material(refs):
+    material = None
+    try:
+        if len(refs) > 2:
+            texmap = refs[1]
+            colors = refs[2]
+            material = Material()
+            parameter = get_references(colors)[0]
+            bitmap = get_bitmap(get_reference(texmap).get(3))
+            glossmap = get_bitmap(get_reference(texmap).get(7))
+            transmap = get_bitmap(get_reference(texmap).get(13))
+            normalmap = get_bitmap(get_reference(texmap).get(17))
+            material.set('ambient', get_color(parameter, 0x00))
+            material.set('diffuse', get_color(parameter, 0x01))
+            material.set('specular', get_color(parameter, 0x02))
+            material.set('shinines', get_value(parameter, 0x0B))
+            material.set('emissive', get_color(parameter, 0x08))
+            parablock = refs[4]
+            material.set('glossines', get_value(parablock, 0x02))
+            material.set('metallic', get_value(parablock, 0x05))
+            material.set('refraction', get_value(parablock, 0x06))
+            material.set('opacity', get_value(parablock, 0x01))
+            if bitmap is not None:
+                material.set('bitmap', _basename_any(bitmap))
+            if glossmap is not None:
+                material.set('glossmap', _basename_any(glossmap))
+            if transmap is not None:
+                material.set('transmap', _basename_any(transmap))
+            if normalmap is not None:
+                material.set('normalmap', _basename_any(normalmap))
+    except Exception as exc:
+        print("\t'StandardMtl' Error:", exc)
+    return material
+
+
+def get_standard_surface(arnold):
+    material = None
+    try:
+        if len(arnold) >= 2:
+            shader = arnold[1]
+            material = Material()
+            shadertree = get_references(shader)
+            for shade in shadertree:
+                socket_name = next(
+                    (sk.data.decode("UTF-16", "ignore") for sk in shade.children if sk.types == 1), None)
+                if socket_name == "base_color":
+                    socket_color = next(
+                        (get_parameter(sk, 1) for sk in shade.children if sk.types == 3), (0.0, 0.0, 0.0))
+                    material.set('diffuse', socket_color)
+                elif socket_name == "specular_color":
+                    socket_color = next(
+                        (get_parameter(sk, 1) for sk in shade.children if sk.types == 3), (0.0, 0.0, 0.0))
+                    material.set("specular", socket_color)
+                elif socket_name == "emission_color":
+                    socket_color = next(
+                        (get_parameter(sk, 1) for sk in shade.children if sk.types == 3), (0.0, 0.0, 0.0))
+                    material.set("emissive", socket_color)
+                elif socket_name == "diffuse_roughness":
+                    socket_value = next(
+                        (get_parameter(sk, 2) for sk in shade.children if sk.types == 3), 0.0)
+                    material.set("shinines", socket_value)
+                elif socket_name == "specular":
+                    socket_color = next(
+                        (get_parameter(sk, 2) for sk in shade.children if sk.types == 3), 0.0)
+                    material.set("glossines", socket_color)
+                elif socket_name == "metalness":
+                    socket_color = next(
+                        (get_parameter(sk, 2) for sk in shade.children if sk.types == 3), 0.0)
+                    material.set("metallic", socket_color)
+                elif socket_name == "opacity":
+                    socket_color = next(
+                        (get_parameter(sk, 2) for sk in shade.children if sk.types == 3), 0.0)
+                    material.set("opacity", socket_color)
+                elif socket_name == "specular_IOR":
+                    socket_color = next(
+                        (get_parameter(sk, 2) for sk in shade.children if sk.types == 3), 1.45)
+                    material.set("refraction", socket_color)
+                elif socket_name == "base_color.shader":
+                    mtldata = get_references(shade)
+                    if mtldata:
+                        bitmap = get_texmap(mtldata[0])
+                        if bitmap:
+                            material.set('bitmap', _basename_any(bitmap))
+                elif socket_name == "normal.shader":
+                    mtldata = get_references(shade)
+                    if mtldata:
+                        normalmap = get_texmap(mtldata[0])
+                        if normalmap:
+                            material.set('normalmap', _basename_any(normalmap))
+    except Exception as exc:
+        print("\t'StandardSurface' Error:", exc)
+    return material
+
+
+def get_physical_material(phys):
+    material = None
+    try:
+        if len(phys):
+            colors = phys[0]
+            material = Material()
+            textures = get_reference(colors)
+            bitmap = get_bitmap(textures.get(1))
+            glossmap = get_bitmap(textures.get(2))
+            shinmap = get_bitmap(textures.get(4))
+            normalmap = get_bitmap(textures.get(21))
+            transmap = get_bitmap(textures.get(5))
+            material.set('diffuse', get_rgb(colors, 0x02))
+            material.set('metallic', get_value(colors, 0x05) or 0.0)
+            roughness = get_value(colors, 0x03)
+            material.set('shinines', 1.0 - roughness if roughness is not None else 0.6)
+            glossiness = get_value(colors, 0x04)
+            material.set('glossines', 1.0 - glossiness if glossiness is not None else 0.6)
+            transparency = get_value(colors, 0x06)
+            material.set('opacity', 1.0 - transparency if transparency is not None else 1.0)
+            ior = get_value(colors, 0x21)
+            if ior is not None:
+                material.set('ior', ior)
+            trans_depth = get_value(colors, 0x20)
+            if trans_depth is not None and trans_depth > 0:
+                material.set('trans_depth', trans_depth)
+            material.set('specular', get_rgb(colors, 0x0A))
+            em_weight = get_value(colors, 0x1E) or 0.0
+            em_color = get_rgb(colors, 0x1F) or (0.0, 0.0, 0.0)
+            material.set('emissive', (em_color[0] * em_weight, em_color[1] * em_weight, em_color[2] * em_weight))
+            if bitmap is not None:
+                material.set('bitmap', _basename_any(bitmap))
+            if glossmap is not None:
+                material.set('glossmap', _basename_any(glossmap))
+            if shinmap is not None:
+                material.set('shinmap', _basename_any(shinmap))
+            if transmap is not None:
+                material.set('transmap', _basename_any(transmap))
+            if normalmap is not None:
+                material.set('normalmap', _basename_any(normalmap))
+    except Exception as exc:
+        print("\t'PhysicalMtl' Error:", exc)
+    return material
+
+
+def get_raytrace_material(rays):
+    material = None
+    try:
+        if len(rays) >= 2:
+            colors = rays[0]
+            texmap = rays[2]
+            values = rays[5]
+            material = Material()
+            for color in colors.children:
+                if color.types == 0x2 and color.get_first(0x3).data[0] == 0:
+                    material.set('ambient', color.get_first(0x102).data)
+                if color.types == 0x2 and color.get_first(0x3).data[0] == 3:
+                    material.set('diffuse', color.get_first(0x102).data)
+                if color.types == 0x2 and color.get_first(0x3).data[0] == 7:
+                    material.set('emissive', color.get_first(0x102).data)
+                if color.types == 0x2 and color.get_first(0x3).data[0] == 14:
+                    material.set('specular', color.get_first(0x102).data)
+            material.set('shinines', get_value(values, 0x01) or 0.0)
+            material.set('metallic', get_value(values, 0x02) or 0.0)
+            material.set('glossines', get_value(values, 0x03) or 0.0)
+            rt_trans = get_value(values, 0x04)
+            material.set('opacity', 1.0 - rt_trans if rt_trans is not None else 1.0)
+    except Exception as exc:
+        print("\t'RaytraceMtl' Error:", exc)
+    return material
+
+
+def get_vray_material(vray):
+    material = Material()
+    try:
+        parameter = vray.get(1)
+        bitmap = get_bitmap(vray.get(7))
+        shinmap = get_bitmap(vray.get(8))
+        glossmap = get_bitmap(vray.get(11))
+        transmap = get_bitmap(vray.get(19))
+        normal = get_references(vray.get(10))
+        material.set('diffuse', get_color(parameter, 0x01))
+        material.set('specular', get_color(parameter, 0x02))
+        material.set('shinines', get_value(parameter, 0x03))
+        material.set('emissive', get_color(parameter, 0x33))
+        material.set('glossines', get_value(parameter, 0x06))
+        material.set('metallic', get_value(parameter, 0x19))
+        material.set('refraction', get_value(parameter, 0x09))
+        # VRay: refract_color brightness controls transparency
+        refract_color = get_color(parameter, 0x05)
+        if refract_color:
+            trans = (refract_color[0] + refract_color[1] + refract_color[2]) / 3.0
+            material.set('opacity', 1.0 - trans)
+        if bitmap is not None:
+            material.set('bitmap', _basename_any(bitmap))
+        if shinmap is not None:
+            material.set('shinmap', _basename_any(shinmap))
+        if glossmap is not None:
+            material.set('glossmap', _basename_any(glossmap))
+        if transmap is not None:
+            material.set('transmap', _basename_any(transmap))
+        if normal and len(normal) > 0:
+            material.set('strength', get_value(parameter, 0x06))
+            refs = get_references(normal[0])
+            if refs:
+                normalmap = get_bitmap(refs[0])
+                if normalmap is not None:
+                    material.set('normalmap', _basename_any(normalmap))
+    except Exception as exc:
+        print("\t'VrayMtl' Error:", exc)
+    return material
+
+
+def get_corona_material(mtl):
+    material = Material()
+    try:
+        corona = mtl[0].children
+        parameter = get_reference(mtl[0])
+        bitmap = get_bitmap(parameter.get(0))
+        shinmap = get_bitmap(parameter.get(1))
+        glossmap = get_bitmap(parameter.get(2))
+        transmap = get_bitmap(parameter.get(5))
+        normal = get_references(parameter.get(6))
+        material.set('diffuse', get_parameter(corona[0x03], 1))
+        material.set('specular', get_parameter(corona[0x04], 1))
+        material.set('shinines', get_parameter(corona[0x3E], 2))
+        material.set('emissive', get_parameter(corona[0x08], 1))
+        material.set('glossines', get_parameter(corona[0x09], 2))
+        material.set('metallic', get_parameter(corona[0x0D], 2))
+        material.set('refraction', get_parameter(corona[0x40], 2))
+        corona_trans = get_parameter(corona[0x0B], 2)
+        material.set('opacity', 1.0 - corona_trans if corona_trans is not None else 1.0)
+        if bitmap is not None:
+            material.set('bitmap', _basename_any(bitmap))
+        if shinmap is not None:
+            material.set('shinmap', _basename_any(shinmap))
+        if glossmap is not None:
+            material.set('glossmap', _basename_any(glossmap))
+        if transmap is not None:
+            material.set('transmap', _basename_any(transmap))
+        if normal and len(normal) > 0:
+            values = normal[0].children
+            refs = get_references(normal[0])
+            if refs:
+                normalmap = get_bitmap(refs[0])
+                material.set('strength', get_parameter(values[0x03], 2))
+                if normalmap is not None:
+                    material.set('normalmap', _basename_any(normalmap))
+    except Exception as exc:
+        print("\t'CoronaMtl' Error:", exc)
+    return material
+
+
+def get_arch_material(ad):
+    material = Material()
+    try:
+        material.set('diffuse', get_rgb(ad, 0x1A))
+        material.set('specular', get_color(ad, 0x05))
+        material.set('shinines', get_value(ad, 0x0B))
+    except:
+        pass
+    return material
+
+
+def extract_material(mat):
+    """Extract material properties from a .max material chunk.
+    Returns a dict with PBR-compatible properties, or None.
+    """
+    if mat is None:
+        return None
+    material = None
+    uid = get_guid(mat)
+    try:
+        if uid == 0x0002:  # Standard
+            refs = get_references(mat)
+            material = get_standard_material(refs)
+        elif uid == VRAY_MTL:
+            refs = get_reference(mat)
+            material = get_vray_material(refs)
+        elif uid == CORO_MTL:
+            refs = get_references(mat)
+            material = get_corona_material(refs)
+        elif uid == PHYS_MTL:
+            refs = get_references(mat)
+            material = get_physical_material(refs)
+        elif uid == RAYT_MTL:
+            refs = get_references(mat)
+            material = get_raytrace_material(refs)
+        elif uid == SURF_MTL:
+            refs = get_references(mat)
+            shaders = get_references(refs[0])
+            material = get_standard_surface(shaders)
+        elif uid == ARCH_MTL:
+            refs = get_references(mat)
+            material = get_arch_material(refs[0])
+        elif uid == VTWO_MTL:
+            sides = get_references(mat)
+            for side in sides:
+                material = extract_material(side)
+                if material:
+                    break
+        elif uid == LAYER_MTL:
+            refs = get_references(mat)
+            layers = get_reference(refs[0])
+            for layer in layers.values():
+                material = extract_material(layer)
+                if material:
+                    break
+        elif uid == 0x0200:  # Multi/Sub-Object
+            refs = get_references(mat)
+            for ref in refs:
+                if ref is not None:
+                    material = extract_material(ref)
+                    if material:
+                        break
+    except Exception as exc:
+        print("\textract_material Error:", exc)
+    if material:
+        if isinstance(material, dict):
+            return material
+        return material.data
+    return None
+
+
+def find_image(filename, dirname, recursive=False):
+    """Search for a texture image file near the .max file."""
+    if not filename:
+        return None
+    # Try exact path first
+    if os.path.isfile(filename):
+        return filename
+    # Try in same directory as .max file
+    basename = _basename_any(filename)
+    candidate = os.path.join(dirname, basename)
+    if os.path.isfile(candidate):
+        return candidate
+    if recursive:
+        for root, dirs, files in os.walk(dirname):
+            for f in files:
+                if f.lower() == basename.lower():
+                    return os.path.join(root, f)
+    return None
+
+
+###############################################################################
+# Math Utilities (replacing mathutils)
+###############################################################################
+
+def euler_xyz_to_quat(rx, ry, rz):
+    """Convert intrinsic XYZ Euler angles to quaternion (w, x, y, z)."""
+    cx, sx = math.cos(rx / 2), math.sin(rx / 2)
+    cy, sy = math.cos(ry / 2), math.sin(ry / 2)
+    cz, sz = math.cos(rz / 2), math.sin(rz / 2)
+    return (
+        cx * cy * cz + sx * sy * sz,
+        sx * cy * cz - cx * sy * sz,
+        cx * sy * cz + sx * cy * sz,
+        cx * cy * sz - sx * sy * cz,
+    )
+
+
+def quat_mul(a, b):
+    """Multiply two quaternions (w, x, y, z)."""
+    return (
+        a[0]*b[0] - a[1]*b[1] - a[2]*b[2] - a[3]*b[3],
+        a[0]*b[1] + a[1]*b[0] + a[2]*b[3] - a[3]*b[2],
+        a[0]*b[2] - a[1]*b[3] + a[2]*b[0] + a[3]*b[1],
+        a[0]*b[3] + a[1]*b[2] - a[2]*b[1] + a[3]*b[0],
+    )
+
+
+def quat_from_mat3(m):
+    """Convert 3x3 rotation matrix (row-major 9 floats) to quaternion (w,x,y,z)."""
+    r00, r01, r02, r10, r11, r12, r20, r21, r22 = m
+    tr = r00 + r11 + r22
+    if tr > 0:
+        s = 0.5 / math.sqrt(tr + 1.0)
+        return (0.25 / s, (r21 - r12) * s, (r02 - r20) * s, (r10 - r01) * s)
+    elif r00 > r11 and r00 > r22:
+        s = 2.0 * math.sqrt(1.0 + r00 - r11 - r22)
+        return ((r21 - r12) / s, 0.25 * s, (r01 + r10) / s, (r02 + r20) / s)
+    elif r11 > r22:
+        s = 2.0 * math.sqrt(1.0 + r11 - r00 - r22)
+        return ((r02 - r20) / s, (r01 + r10) / s, 0.25 * s, (r12 + r21) / s)
+    else:
+        s = 2.0 * math.sqrt(1.0 + r22 - r00 - r11)
+        return ((r10 - r01) / s, (r02 + r20) / s, (r12 + r21) / s, 0.25 * s)
+
+
+def transform_point(loc, quat_wxyz, scale, point):
+    """Apply TRS transform to a point. Returns (x, y, z)."""
+    w, x, y, z = quat_wxyz
+    sx, sy, sz = scale
+    px, py, pz = point[0] * sx, point[1] * sy, point[2] * sz
+    # Rotate by quaternion: q * p * q_conj
+    xx, yy, zz = x*x, y*y, z*z
+    xy, xz, yz = x*y, x*z, y*z
+    wx, wy, wz = w*x, w*y, w*z
+    rx = px*(1 - 2*(yy+zz)) + py*2*(xy-wz) + pz*2*(xz+wy)
+    ry = px*2*(xy+wz) + py*(1 - 2*(xx+zz)) + pz*2*(yz-wx)
+    rz = px*2*(xz-wy) + py*2*(yz+wx) + pz*(1 - 2*(xx+yy))
+    return (rx + loc[0], ry + loc[1], rz + loc[2])
+
+
+###############################################################################
+# Transform Extraction (adapted from import_max.py, no mathutils)
+###############################################################################
+
+def get_point_value(floatval, default=0.0):
+    uid = get_guid(floatval)
+    if uid == 0x2007:  # Bezier-Float
+        flv = floatval.get_first(0x7127)
+        if flv:
+            try:
+                return flv.get_first(0x2501).data[0]
+            except:
+                return default
+        return default
+    if uid == FLOAT_POINT:  # Float Wire
+        flv = get_references(floatval)[0]
+        return get_point_value(flv)
+    return default
+
+
+def get_point_3d_values(chunk, default=0.0):
+    floats = []
+    if chunk:
+        refs = get_references(chunk)
+        for fl in refs:
+            flt = get_point_value(fl, default)
+            if fl is not None:
+                floats.append(flt)
+    return floats
+
+
+def get_bezier_floats(pos):
+    refs = get_references(pos)
+    floats = get_point_3d_values(pos)
+    if any(rf.get_first(0x2501) for rf in refs):
+        floats.clear()
+        for ref in refs:
+            floats.append(ref.get_first(0x2501).data[0])
+    return floats
+
+
+def get_position(pos):
+    """Extract position as (x, y, z) tuple."""
+    position = (0.0, 0.0, 0.0)
+    if pos:
+        uid = get_guid(pos)
+        if uid == MATRIX_POS:
+            vals = get_bezier_floats(pos)
+            if len(vals) >= 3:
+                position = (vals[0], vals[1], vals[2])
+        elif uid == 0x2008:  # Bezier Position
+            d = pos.get_first(0x2503)
+            if d:
+                position = (d.data[0], d.data[1], d.data[2])
+        elif uid == 0x442312:  # TCB Position
+            d = pos.get_first(0x2503)
+            if d:
+                position = (d.data[0], d.data[1], d.data[2])
+        elif uid == 0x4B4B1002:  # Position List
+            refs = get_references(pos)
+            if len(refs) >= 3:
+                return get_position(refs[0])
+    return position
+
+
+def get_rotation(pos):
+    """Extract rotation as quaternion (w, x, y, z)."""
+    rotation = (1.0, 0.0, 0.0, 0.0)
+    if pos:
+        uid = get_guid(pos)
+        if uid == 0x2012:  # Euler XYZ
+            rot = get_bezier_floats(pos)
+            if len(rot) >= 3:
+                rotation = euler_xyz_to_quat(rot[0], rot[1], rot[2])
+        elif uid == 0x442313:  # TCB Rotation
+            d = pos.get_first(0x2504)
+            if d:
+                rotation = (d.data[3], d.data[2], d.data[1], d.data[0])
+        elif uid == MATRIX_ROT:  # Rotation Wire
+            refs = get_references(pos)
+            if refs:
+                return get_rotation(refs[0])
+        elif uid == 0x4B4B1003:  # Rotation List
+            refs = get_references(pos)
+            if len(refs) > 3:
+                return get_rotation(refs[0])
+    return rotation
+
+
+def get_scale(pos):
+    """Extract scale as (sx, sy, sz) tuple."""
+    scale = (1.0, 1.0, 1.0)
+    if pos:
+        uid = get_guid(pos)
+        if uid == MATRIX_SCL:  # ScaleXYZ
+            vals = get_bezier_floats(pos)
+            if len(vals) >= 3:
+                scale = (vals[0], vals[1], vals[2])
+        elif uid == 0x2010:  # Bezier Scale
+            scl = pos.get_first(0x2501)
+            if scl is None:
+                scl = pos.get_first(0x2505)
+            if scl and len(scl.data) >= 3:
+                scale = (scl.data[0], scl.data[1], scl.data[2])
+        elif uid == 0x442315:  # TCB Zoom
+            scl = pos.get_first(0x2501)
+            if scl is None:
+                scl = pos.get_first(0x2505)
+            if scl and len(scl.data) >= 3:
+                scale = (scl.data[0], scl.data[1], scl.data[2])
+        elif uid == 0x4B4B1002:  # Scale List
+            refs = get_references(pos)
+            if len(refs) >= 3:
+                return get_scale(refs[0])
+    return scale
+
+
+###############################################################################
+# Mesh Extraction (standalone, no Blender)
+###############################################################################
+
+def extract_editable_mesh(msh):
+    """Extract mesh data from an Editable Mesh chunk.
+    Returns Mesh3d or None.
+    """
+    meshchunk = msh.get_first(0x08FE)
+    if not meshchunk:
+        return None
+    mesh = Mesh3d()
+    cnt = 0x0916 if get_guid(msh) == 0x019 else 0x2394
+    uvm = 0x0918 if get_guid(msh) == 0x019 else 0x2396
+    vertex_chunk = meshchunk.get_first(0x0914)
+    faceid_chunk = meshchunk.get_first(0x0912)
+    if not (vertex_chunk and faceid_chunk):
+        return None
+    mesh.verts = get_point_array(vertex_chunk.data)
+    mesh.faces, mesh.mats = get_mesh_polys(faceid_chunk.data)
+    for chunk in meshchunk.children:
+        if chunk.types in {0x0924, 0x0959}:
+            mesh.maps.append(get_long(chunk.data, 0)[0])
+        elif chunk.types == cnt:
+            mesh.cords.append(get_point_array(chunk.data))
+        elif chunk.types == uvm:
+            mesh.uvids.append(get_uvw_coords(chunk))
+    return mesh
+
+
+def extract_editable_poly(msh):
+    """Extract mesh data from an Editable Poly chunk.
+    Returns Mesh3d or None.
+    """
+    polychunk = msh.get_first(0x08FE)
+    if not polychunk:
+        return None
+    mesh = Mesh3d()
+    for child in polychunk.children:
+        if child.types == 0x0100:
+            mesh.verts = calc_point(child.data)
+        elif child.types == 0x0108:
+            mesh.polys = get_poly_loops(child)
+        elif child.types == 0x010A:
+            mesh.tris = calc_point_float(child.data)
+        elif child.types == 0x0118:
+            mesh.faces.append(get_face_chunks(child))
+        elif child.types == 0x011A:
+            mesh.points = calc_point_3d(child)
+        elif child.types == 0x0124:
+            mesh.maps.append(get_long(child.data, 0)[0])
+        elif child.types == 0x0128:
+            mesh.cords.append(calc_point_float(child.data))
+        elif child.types == 0x012B:
+            mesh.uvids.append(get_poly_data(child))
+        elif child.types == 0x0310:
+            mesh.polys = get_poly_data(child)
+    if mesh.points is not None:
+        # Per-face material groups are not emitted by the current single-
+        # primitive GLB writer.  Keep the compact face view instead of expanding
+        # every serialized record into Point3d and tuple objects.
+        mesh.faces = mesh.points
+        mesh.points = None
+    elif not mesh.faces and mesh.polys:
+        mesh.faces = mesh.polys
+    return mesh
+
+
+def _primitive_parameters(msh, count):
+    """Read legacy primitive dimensions from its parameter block."""
+    refs = get_references(msh)
+    if not refs or refs[0] is None:
+        return None
+    children = refs[0].children
+    values = []
+    for index in range(1, count + 1):
+        if index >= len(children):
+            return None
+        data = children[index].data
+        try:
+            value = get_float(data, 15)[0]
+        except Exception:
+            try:
+                value = UNPACK_BOX_DATA(data)[6]
+            except Exception:
+                return None
+        if not math.isfinite(value):
+            return None
+        values.append(value)
+    return values
+
+
+def _primitive_mesh(vertices, faces, uv_coords=None, uv_faces=None):
+    mesh = Mesh3d()
+    mesh.verts = array.array('f', (component for vertex in vertices for component in vertex))
+    mesh.faces = faces
+    if uv_coords is not None:
+        mesh.maps = [1]
+        mesh.cords = [array.array(
+            'f', (component for uv in uv_coords for component in (uv[0], uv[1], 0.0)))]
+        mesh.uvids = [uv_faces if uv_faces is not None else faces]
+    return mesh
+
+
+def _extract_box(msh):
+    params = _primitive_parameters(msh, 3)
+    if not params:
+        return None
+    length, width, height = params
+    x, y, z = width * 0.5, length * 0.5, abs(height) * 0.5
+    vertices = [
+        (-x, -y, -z), (x, -y, -z), (x, y, -z), (-x, y, -z),
+        (-x, -y, z), (x, -y, z), (x, y, z), (-x, y, z),
+    ]
+    faces = [
+        (0, 3, 2, 1), (4, 5, 6, 7), (0, 1, 5, 4),
+        (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7),
+    ]
+    uv_coords = [(u, v) for _ in faces for u, v in
+                 ((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0))]
+    uv_faces = [tuple(range(index * 4, index * 4 + 4))
+                for index in range(len(faces))]
+    return _primitive_mesh(vertices, faces, uv_coords, uv_faces)
+
+
+def _extract_plane(msh):
+    params = _primitive_parameters(msh, 2)
+    if not params:
+        return None
+    length, width = params
+    x, y = width * 0.5, length * 0.5
+    vertices = [(-x, -y, 0.0), (x, -y, 0.0),
+                (x, y, 0.0), (-x, y, 0.0)]
+    faces = [(0, 1, 2, 3)]
+    return _primitive_mesh(
+        vertices, faces,
+        [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
+
+
+def _extract_cylinder_like(msh, cone=False, segments=32):
+    params = _primitive_parameters(msh, 3 if cone else 2)
+    if not params:
+        return None
+    if cone:
+        radius_bottom, radius_top, height = params
+    else:
+        radius_bottom, height = params
+        radius_top = radius_bottom
+    radius_bottom = abs(radius_bottom)
+    radius_top = abs(radius_top)
+    half_height = abs(height) * 0.5
+    vertices = []
+    uv_coords = []
+    for ring, (radius, z) in enumerate(
+            ((radius_bottom, -half_height), (radius_top, half_height))):
+        for index in range(segments + 1):
+            u = index / segments
+            angle = 2.0 * math.pi * u
+            vertices.append((radius * math.cos(angle), radius * math.sin(angle), z))
+            uv_coords.append((u, float(ring)))
+
+    faces = []
+    uv_faces = []
+    stride = segments + 1
+    for index in range(segments):
+        faces.append((index, index + 1, stride + index + 1, stride + index))
+        uv_faces.append(faces[-1])
+
+    # Cap n-gons use separate radial UV coordinates but reuse ring positions.
+    bottom_uv_start = len(uv_coords)
+    for index in range(segments):
+        angle = 2.0 * math.pi * index / segments
+        uv_coords.append((0.5 + 0.5 * math.cos(angle),
+                          0.5 + 0.5 * math.sin(angle)))
+    top_uv_start = len(uv_coords)
+    uv_coords.extend(uv_coords[bottom_uv_start:bottom_uv_start + segments])
+    faces.append(tuple(reversed(range(segments))))
+    uv_faces.append(tuple(bottom_uv_start + index
+                          for index in reversed(range(segments))))
+    faces.append(tuple(stride + index for index in range(segments)))
+    uv_faces.append(tuple(top_uv_start + index for index in range(segments)))
+    return _primitive_mesh(vertices, faces, uv_coords, uv_faces)
+
+
+def _extract_sphere(msh, segments=32, rings=16):
+    params = _primitive_parameters(msh, 1)
+    if not params:
+        return None
+    radius = abs(params[0])
+    vertices = []
+    uv_coords = []
+    for ring in range(rings + 1):
+        v = ring / rings
+        phi = math.pi * v
+        radial = radius * math.sin(phi)
+        z = radius * math.cos(phi)
+        for segment in range(segments + 1):
+            u = segment / segments
+            angle = 2.0 * math.pi * u
+            vertices.append((radial * math.cos(angle),
+                             radial * math.sin(angle), z))
+            uv_coords.append((u, 1.0 - v))
+    faces = []
+    stride = segments + 1
+    for ring in range(rings):
+        for segment in range(segments):
+            a = ring * stride + segment
+            b = a + 1
+            c = a + stride + 1
+            d = a + stride
+            if ring == 0:
+                faces.append((a, c, d))
+            elif ring == rings - 1:
+                faces.append((a, b, c))
+            else:
+                faces.append((a, b, c, d))
+    return _primitive_mesh(vertices, faces, uv_coords)
+
+
+def _extract_torus(msh, major_segments=32, minor_segments=12):
+    params = _primitive_parameters(msh, 2)
+    if not params:
+        return None
+    major_radius, minor_radius = abs(params[0]), abs(params[1])
+    vertices = []
+    uv_coords = []
+    for major in range(major_segments + 1):
+        u = major / major_segments
+        theta = 2.0 * math.pi * u
+        for minor in range(minor_segments + 1):
+            v = minor / minor_segments
+            phi = 2.0 * math.pi * v
+            radial = major_radius + minor_radius * math.cos(phi)
+            vertices.append((radial * math.cos(theta), radial * math.sin(theta),
+                             minor_radius * math.sin(phi)))
+            uv_coords.append((u, v))
+    faces = []
+    stride = minor_segments + 1
+    for major in range(major_segments):
+        for minor in range(minor_segments):
+            a = major * stride + minor
+            faces.append((a, a + stride, a + stride + 1, a + 1))
+    return _primitive_mesh(vertices, faces, uv_coords)
+
+
+def extract_mesh(msh, _seen=None):
+    """Extract mesh data from a mesh chunk. Returns Mesh3d or None."""
+    if msh is None:
+        return None
+    if _seen is None:
+        _seen = set()
+    marker = id(msh)
+    if marker in _seen:
+        return None
+    _seen.add(marker)
+    uid = get_guid(msh)
+    if uid in {POLY_MESH, EDIT_POLY}:
+        return extract_editable_poly(msh)
+    elif uid in {0x019, EDIT_MESH}:
+        return extract_editable_mesh(msh)
+    elif uid == 0x010:
+        return _extract_box(msh)
+    elif uid == 0x011:
+        return _extract_sphere(msh)
+    elif uid == 0x012:
+        return _extract_cylinder_like(msh)
+    elif uid == 0x020:
+        return _extract_torus(msh)
+    elif uid == CONE:
+        return _extract_cylinder_like(msh, cone=True)
+    elif uid == PLANE:
+        return _extract_plane(msh)
+    elif uid in {0x2032, 0x2033}:
+        # Shell/derived objects retain their source object as the final
+        # reference.  Exporting that base mesh is preferable to dropping the
+        # architectural object entirely; unsupported modifier thickness is not
+        # baked without 3ds Max.
+        refs = get_references(msh)
+        for ref in reversed(refs):
+            if ref is not None and get_super_id(ref) == 0x10:
+                candidate = extract_mesh(ref, _seen)
+                if candidate is not None:
+                    return candidate
+
+    # Bounded modifier-stack fallback.  Geometry objects and their derived
+    # wrappers use superclass 0x10; following only 0x10 references avoids
+    # wandering into materials, controllers, or bitmap parameter graphs.
+    if get_super_id(msh) == 0x10:
+        for ref in reversed(get_references(msh)):
+            if ref is None or get_super_id(ref) != 0x10:
+                continue
+            candidate = extract_mesh(ref, _seen)
+            if candidate is not None:
+                return candidate
+    return None
+
+
+###############################################################################
+# Source GLB Parser (for --source-glb texture extraction)
+###############################################################################
+
+def parse_source_glb(glb_path):
+    """Parse a source GLB to extract materials, textures, and mesh-to-material mapping.
+
+    Returns (images_dict, materials_list, mesh_to_material) where:
+      images_dict: {image_index: (name, bytes, mime_type)}
+      materials_list: [{'name', 'baseColorFactor', 'metallicFactor', ...}, ...]
+      mesh_to_material: {mesh_name: material_index}
+    """
+    with open(glb_path, 'rb') as f:
+        data = f.read()
+
+    magic, version, length = struct.unpack_from('<III', data, 0)
+    if magic != 0x46546C67:
+        raise ValueError("Not a valid GLB file: %s" % glb_path)
+
+    # JSON chunk
+    offset = 12
+    json_len, json_type = struct.unpack_from('<II', data, offset)
+    if json_type != 0x4E4F534A:
+        raise ValueError("Expected JSON chunk")
+    offset += 8
+    gltf = json.loads(data[offset:offset + json_len].decode('utf-8'))
+    offset += json_len
+    offset = (offset + 3) & ~3
+
+    # BIN chunk
+    bin_data = b''
+    if offset < len(data):
+        bin_len, bin_type = struct.unpack_from('<II', data, offset)
+        if bin_type == 0x004E4942:
+            offset += 8
+            bin_data = data[offset:offset + bin_len]
+
+    # Extract embedded images
+    images_dict = {}
+    for idx, img_def in enumerate(gltf.get('images', [])):
+        name = img_def.get('name', 'image_%d' % idx)
+        mime = img_def.get('mimeType', 'image/png')
+        if 'bufferView' in img_def:
+            bv = gltf['bufferViews'][img_def['bufferView']]
+            bv_offset = bv.get('byteOffset', 0)
+            bv_length = bv['byteLength']
+            img_bytes = bin_data[bv_offset:bv_offset + bv_length]
+            images_dict[idx] = (name, img_bytes, mime)
+
+    # Extract material definitions
+    materials_list = []
+    for mat_def in gltf.get('materials', []):
+        mat = {
+            'name': mat_def.get('name', ''),
+            'baseColorFactor': [1.0, 1.0, 1.0, 1.0],
+            'metallicFactor': 1.0,
+            'roughnessFactor': 1.0,
+            'baseColorTexture': None,
+            'metallicRoughnessTexture': None,
+            'normalTexture': None,
+            'normalScale': 1.0,
+            'transmissionTexture': None,
+            'emissiveFactor': [0.0, 0.0, 0.0],
+            'alphaMode': mat_def.get('alphaMode', 'OPAQUE'),
+            'doubleSided': mat_def.get('doubleSided', False),
+            'alphaCutoff': mat_def.get('alphaCutoff', 0.5) if mat_def.get('alphaMode') == 'MASK' else None,
+        }
+        pbr = mat_def.get('pbrMetallicRoughness', {})
+        if 'baseColorFactor' in pbr:
+            mat['baseColorFactor'] = pbr['baseColorFactor']
+        if 'metallicFactor' in pbr:
+            mat['metallicFactor'] = pbr['metallicFactor']
+        if 'roughnessFactor' in pbr:
+            mat['roughnessFactor'] = pbr['roughnessFactor']
+        if 'baseColorTexture' in pbr:
+            tex_idx = pbr['baseColorTexture']['index']
+            tex = gltf['textures'][tex_idx]
+            mat['baseColorTexture'] = tex.get('source')
+        if 'metallicRoughnessTexture' in pbr:
+            tex_idx = pbr['metallicRoughnessTexture']['index']
+            tex = gltf['textures'][tex_idx]
+            mat['metallicRoughnessTexture'] = tex.get('source')
+        if 'normalTexture' in mat_def:
+            tex_idx = mat_def['normalTexture']['index']
+            tex = gltf['textures'][tex_idx]
+            mat['normalTexture'] = tex.get('source')
+            mat['normalScale'] = mat_def['normalTexture'].get('scale', 1.0)
+        if 'emissiveFactor' in mat_def:
+            mat['emissiveFactor'] = mat_def['emissiveFactor']
+        # KHR extensions
+        exts = mat_def.get('extensions', {})
+        if 'KHR_materials_transmission' in exts:
+            trans_ext = exts['KHR_materials_transmission']
+            mat['KHR_materials_transmission'] = trans_ext
+            trans_tex = trans_ext.get('transmissionTexture')
+            if trans_tex and 'index' in trans_tex:
+                tex = gltf['textures'][trans_tex['index']]
+                mat['transmissionTexture'] = tex.get('source')
+        if 'KHR_materials_ior' in exts:
+            mat['KHR_materials_ior'] = exts['KHR_materials_ior']
+        materials_list.append(mat)
+
+    # Build mesh_name -> material_index mapping
+    mesh_to_material = {}
+    for node_def in gltf.get('nodes', []):
+        if 'mesh' in node_def:
+            mesh_idx = node_def['mesh']
+            mesh_def = gltf['meshes'][mesh_idx]
+            mesh_name = mesh_def.get('name', node_def.get('name', ''))
+            for prim in mesh_def.get('primitives', []):
+                if 'material' in prim:
+                    mesh_to_material[mesh_name] = prim['material']
+                    break
+
+    return images_dict, materials_list, mesh_to_material
+
+
+###############################################################################
+# Custom MaterialData Stream Reader (for glb_to_max.py round-trip files)
+###############################################################################
+
+def read_material_data(maxfile):
+    """Read custom MaterialData stream from OLE2 container.
+
+    Returns (images_dict, materials_list, mesh_to_material) or None if not present.
+      images_dict: {image_index: (name, bytes, mime_type)}
+      materials_list: list of material property dicts
+      mesh_to_material: {mesh_name: material_index}
+    """
+    try:
+        stream = maxfile.openstream('MaterialData')
+        mat_json = json.loads(stream.read().decode('utf-8'))
+    except Exception:
+        return None
+
+    # Read embedded image streams
+    images_dict = {}
+    for i, img_info in enumerate(mat_json.get('images', [])):
+        stream_name = img_info.get('stream', 'Image_%d' % i)
+        try:
+            img_stream = maxfile.openstream(stream_name)
+            img_bytes = img_stream.read()
+            images_dict[i] = (img_info.get('name', 'image_%d' % i),
+                              img_bytes,
+                              img_info.get('mimeType', 'image/png'))
+        except Exception:
+            pass
+
+    materials_list = mat_json.get('materials', [])
+    mesh_to_material = mat_json.get('meshMaterials', {})
+
+    return images_dict, materials_list, mesh_to_material
+
+
+###############################################################################
+# Scene Walker
+###############################################################################
+
+class GLBNode:
+    """Intermediate node data for GLB output."""
+    __slots__ = ('name', 'positions', 'indices', 'uvs', 'translation',
+                 'rotation_xyzw', 'scale', 'children',
+                 'material', 'texture_images', 'has_mesh',
+                 'camera', 'light', '_is_child')
+
+    def __init__(self, name=''):
+        self.name = name
+        self.positions = []      # flat [x,y,z,...] in Y-up
+        self.indices = []        # flat [i0,i1,i2,...] triangles
+        self.uvs = []            # flat [u,v,...] or empty
+        self.translation = [0, 0, 0]
+        self.rotation_xyzw = [0, 0, 0, 1]
+        self.scale = [1, 1, 1]
+        self.children = []
+        self.material = None         # dict with PBR properties
+        self.texture_images = {}     # {type: (name, bytes, mime)}
+        self.has_mesh = True         # False for empties/groups
+        self.camera = None           # dict with camera properties
+        self.light = None            # dict with light properties
+        self._is_child = False       # True if this node is a child of another
+
+
+def _build_glb_mesh(mesh, pivot_loc, pivot_quat, pivot_scl):
+    """Convert Mesh3d to de-duplicated GLB vertex/index data.
+    Applies pivot transform, converts Z-up to Y-up, flips UV V.
+    Returns (positions, indices, uvs) where uvs may be empty.
+    """
+    verts = mesh.verts
+    faces = mesh.faces
+    has_uvs = (len(mesh.cords) > 0 and len(mesh.uvids) > 0
+               and len(mesh.uvids[0]) == len(faces))
+    uv_coords = mesh.cords[0] if has_uvs else None
+    uv_faces = mesh.uvids[0] if has_uvs else None
+
+    has_pivot = (pivot_loc != (0, 0, 0) or pivot_quat != (1, 0, 0, 0)
+                 or pivot_scl != (1, 1, 1))
+
+    # A tuple key retains two Python integer objects per exported vertex.  Large
+    # architectural scenes can contain millions of split UV vertices, so encode
+    # the pair into one integer instead.
+    vertex_map = {}
+    positions = array.array('f')
+    uvs = array.array('f')
+    indices = array.array('I')
+
+    for fi, face in enumerate(faces):
+        uv_face = uv_faces[fi] if has_uvs else None
+        tri_verts = []
+        for vi in range(len(face)):
+            pos_idx = face[vi]
+            uv_idx = uv_face[vi] if has_uvs else -1
+            key = ((pos_idx << 32) | uv_idx) if has_uvs else pos_idx
+            vertex_idx = vertex_map.get(key)
+            if vertex_idx is None:
+                new_idx = len(positions) // 3
+                vertex_map[key] = new_idx
+                vertex_idx = new_idx
+                # Get position (bounds check for malformed mesh data)
+                if pos_idx * 3 + 2 >= len(verts):
+                    positions.extend([0.0, 0.0, 0.0])
+                    if has_uvs:
+                        uvs.extend([0.0, 0.0])
+                    tri_verts.append(vertex_idx)
+                    continue
+                px = verts[pos_idx * 3]
+                py = verts[pos_idx * 3 + 1]
+                pz = verts[pos_idx * 3 + 2]
+                # Apply pivot transform (in Z-up space)
+                if has_pivot:
+                    px, py, pz = transform_point(pivot_loc, pivot_quat,
+                                                 pivot_scl, (px, py, pz))
+                # Convert Z-up to Y-up: (x, y, z) -> (x, z, -y)
+                positions.extend([px, pz, -py])
+                # UV (extract u,v from u,v,w; flip V for glTF)
+                if has_uvs:
+                    n_uvs = len(uv_coords) // 3
+                    if uv_idx < n_uvs:
+                        u = uv_coords[uv_idx * 3]
+                        v = 1.0 - uv_coords[uv_idx * 3 + 1]
+                        uvs.extend([u, v])
+                    else:
+                        uvs.extend([0.0, 0.0])
+            tri_verts.append(vertex_idx)
+        # Fan-triangulate n-gon
+        for i in range(1, len(tri_verts) - 1):
+            indices.extend([tri_verts[0], tri_verts[i], tri_verts[i + 1]])
+
+    return positions, indices, uvs
+
+
+def _extract_node_trs(chunk):
+    """Extract TRS transform from a scene node chunk, converted to Y-up glTF coords.
+
+    Returns (translation, rotation_xyzw, scale) in glTF convention.
+    """
+    pos = (0.0, 0.0, 0.0)
+    rot = (1.0, 0.0, 0.0, 0.0)  # w,x,y,z
+    scl = (1.0, 1.0, 1.0)
+    try:
+        prs, msh, mat = get_matrix_mesh_material(chunk)
+    except:
+        prs = None
+    if prs:
+        prs_uid = get_guid(prs)
+        if prs_uid == 0x2005:  # PRS controller
+            prs_refs = get_references(prs)
+            if len(prs_refs) >= 3:
+                pos = get_position(prs_refs[0])
+                rot = get_rotation(prs_refs[1])
+                scl = get_scale(prs_refs[2])
+    # Convert Z-up to Y-up
+    translation = [pos[0], pos[2], -pos[1]]
+    rotation_xyzw = [rot[1], rot[3], -rot[2], rot[0]]
+    scale = [scl[0], scl[2], scl[1]]
+    return translation, rotation_xyzw, scale
+
+
+def _get_chunk_name(chunk):
+    """Get a clean string name from a scene chunk."""
+    name = get_node_name(chunk) or "Object"
+    if isinstance(name, bytes):
+        name = name.decode('utf-8', 'replace')
+    return name.rstrip('\x00').strip()
+
+
+def walk_scene(source_glb_data=None, max_dirname=None, embedded_material_data=None,
+               extras=False, khr=False, double_sided=False):
+    """Walk the scene tree and collect all mesh nodes as GLBNodes.
+
+    Material source priority:
+      1. source_glb_data (--source-glb explicit override)
+      2. embedded_material_data (MaterialData stream from glb_to_max.py round-trip)
+      3. Traditional .max material chunks (for real .max files from 3DS MAX)
+
+    Args:
+        source_glb_data: optional (images_dict, materials_list, mesh_to_material)
+                         from parse_source_glb() for texture extraction
+        max_dirname: directory of the .max file (for texture file search)
+        embedded_material_data: optional (images_dict, materials_list, mesh_to_material)
+                                from read_material_data() for round-trip files
+        extras: if True, also export cameras, lights, and empties
+        khr: if True, emit KHR_materials_transmission/ior for refractive materials
+        double_sided: if True, disable back-face culling on every mesh material
+    """
+    global SCENE_LIST
+    results = []
+    if not SCENE_LIST or not SCENE_LIST[0].children:
+        return results
+
+    # Unpack source GLB data if provided
+    src_images = src_materials = src_mesh_map = None
+    if source_glb_data:
+        src_images, src_materials, src_mesh_map = source_glb_data
+
+    # Unpack embedded MaterialData if provided (tier 2)
+    emb_images = emb_materials = emb_mesh_map = None
+    if embedded_material_data:
+        emb_images, emb_materials, emb_mesh_map = embedded_material_data
+
+    # Thousands of supplied texture files are common for production scenes.
+    # Cache both path resolution and file bytes so shared materials do not walk
+    # the entire asset tree or allocate another image payload for every object.
+    image_path_cache = {}
+    image_bytes_cache = {}
+    image_file_index = None
+    skipped_scalar_maps = set()
+
+    def resolve_external_image(reference):
+        nonlocal image_file_index
+        if not reference or not max_dirname:
+            return None
+        text = str(reference)
+        if os.path.isfile(text):
+            return text
+        basename = _basename_any(text)
+        candidate = os.path.join(max_dirname, basename)
+        if os.path.isfile(candidate):
+            return candidate
+        if image_file_index is None:
+            image_file_index = {}
+            for root, _dirs, files in os.walk(max_dirname):
+                for filename in files:
+                    if os.path.splitext(filename)[1].lower() in {
+                            '.png', '.jpg', '.jpeg', '.webp'}:
+                        image_file_index.setdefault(
+                            filename.casefold(), os.path.join(root, filename))
+        return image_file_index.get(basename.casefold())
+
+    def load_external_image(reference):
+        if not reference or not max_dirname:
+            return None
+        lookup_key = str(reference).replace('\\', '/').casefold()
+        if lookup_key in image_path_cache:
+            img_path = image_path_cache[lookup_key]
+        else:
+            img_path = resolve_external_image(reference)
+            image_path_cache[lookup_key] = img_path
+        if not img_path:
+            return None
+        path_key = os.path.normcase(os.path.abspath(img_path))
+        cached = image_bytes_cache.get(path_key)
+        if cached is None:
+            with open(img_path, 'rb') as image_file:
+                payload = image_file.read()
+            cached = (os.path.basename(img_path), payload, _image_mime(img_path))
+            image_bytes_cache[path_key] = cached
+        return cached
+
+    # Track scene chunk -> GLBNode index for hierarchy building
+    scene_chunks = []  # parallel to results: the scene chunk for each GLBNode
+    reconstructed_types = {}
+    unsupported_types = {}
+    native_primitive_uids = {0x010, 0x011, 0x012, 0x020, CONE, PLANE,
+                             0x2032, 0x2033}
+
+    for chunk in SCENE_LIST[0].children:
+        if not isinstance(chunk, SceneChunk):
+            continue
+        uid = get_guid(chunk)
+        sid = get_super_id(chunk)
+        if uid not in {0x1, 0x14} or sid > 0x1:
+            continue
+        try:
+            prs, msh, mat = get_matrix_mesh_material(chunk)
+        except:
+            continue
+        if msh is None:
+            continue
+        name = _get_chunk_name(chunk)
+        mesh_uid = get_guid(msh)
+        mesh = extract_mesh(msh)
+        if mesh is None or not mesh.verts or not mesh.faces:
+            class_name = get_cls_name(msh)
+            key = (mesh_uid, class_name)
+            record = unsupported_types.setdefault(key, [0, []])
+            record[0] += 1
+            if len(record[1]) < 3:
+                record[1].append(name)
+            continue
+        if mesh_uid in native_primitive_uids or mesh_uid not in {
+                POLY_MESH, EDIT_POLY, 0x019, EDIT_MESH}:
+            key = (mesh_uid, get_cls_name(msh))
+            reconstructed_types[key] = reconstructed_types.get(key, 0) + 1
+
+        # Extract transforms
+        pos = (0.0, 0.0, 0.0)
+        rot = (1.0, 0.0, 0.0, 0.0)  # w,x,y,z
+        scl = (1.0, 1.0, 1.0)
+        if prs:
+            prs_uid = get_guid(prs)
+            if prs_uid == 0x2005:  # PRS controller
+                prs_refs = get_references(prs)
+                if len(prs_refs) >= 3:
+                    pos = get_position(prs_refs[0])
+                    rot = get_rotation(prs_refs[1])
+                    scl = get_scale(prs_refs[2])
+
+        # Extract pivot transform
+        nodeloca = chunk.get_first(0x96A)
+        noderota = chunk.get_first(0x96B)
+        nodesize = chunk.get_first(0x96C)
+        pivot_loc = nodeloca.data if nodeloca else (0.0, 0.0, 0.0)
+        pivot_quat_zyxw = noderota.data if noderota else (0.0, 0.0, 0.0, 1.0)
+        pivot_scl = nodesize.data[:3] if nodesize else (1.0, 1.0, 1.0)
+        # Convert pivot quaternion from (z,y,x,w) storage to (w,x,y,z)
+        pivot_quat = (pivot_quat_zyxw[3], pivot_quat_zyxw[2],
+                      pivot_quat_zyxw[1], pivot_quat_zyxw[0])
+
+        # Build GLB mesh data (applies pivot, converts coords)
+        positions, indices, uvs = _build_glb_mesh(
+            mesh, pivot_loc, pivot_quat, pivot_scl)
+
+        if not positions or not indices:
+            continue
+
+        node = GLBNode(name)
+        node.positions = positions
+        node.indices = indices
+        node.uvs = uvs
+
+        # Convert node TRS from Z-up to Y-up
+        node.translation = [pos[0], pos[2], -pos[1]]
+        node.rotation_xyzw = [rot[1], rot[3], -rot[2], rot[0]]
+        node.scale = [scl[0], scl[2], scl[1]]
+
+        # --- Material assignment (three-tier priority) ---
+        # Tier 1: --source-glb (match by mesh name, with whitespace-stripped fallback)
+        matched_name = None
+        if src_mesh_map:
+            if name in src_mesh_map:
+                matched_name = name
+            else:
+                stripped = name.strip()
+                if stripped in src_mesh_map:
+                    matched_name = stripped
+        if matched_name is not None:
+            mat_idx = src_mesh_map[matched_name]
+            if mat_idx < len(src_materials):
+                src_mat = src_materials[mat_idx]
+                node.material = {
+                    'baseColorFactor': src_mat['baseColorFactor'],
+                    'metallicFactor': src_mat['metallicFactor'],
+                    'roughnessFactor': src_mat['roughnessFactor'],
+                    'emissiveFactor': src_mat['emissiveFactor'],
+                    'alphaMode': src_mat['alphaMode'],
+                    'doubleSided': src_mat.get('doubleSided', False),
+                    'alphaCutoff': src_mat.get('alphaCutoff'),
+                }
+                tex_imgs = {}
+                if src_mat['baseColorTexture'] is not None:
+                    img_idx = src_mat['baseColorTexture']
+                    if img_idx in src_images:
+                        tex_imgs['baseColor'] = src_images[img_idx]
+                if src_mat['metallicRoughnessTexture'] is not None:
+                    img_idx = src_mat['metallicRoughnessTexture']
+                    if img_idx in src_images:
+                        tex_imgs['metallicRoughness'] = src_images[img_idx]
+                if src_mat['normalTexture'] is not None:
+                    img_idx = src_mat['normalTexture']
+                    if img_idx in src_images:
+                        tex_imgs['normal'] = src_images[img_idx]
+                        node.material['normalScale'] = src_mat.get('normalScale', 1.0)
+                if src_mat.get('transmissionTexture') is not None:
+                    img_idx = src_mat['transmissionTexture']
+                    if img_idx in src_images:
+                        tex_imgs['transmission'] = src_images[img_idx]
+                node.texture_images = tex_imgs
+                # Pass through KHR extension data
+                if src_mat.get('KHR_materials_ior'):
+                    node.material['KHR_materials_ior'] = src_mat['KHR_materials_ior']
+                if src_mat.get('KHR_materials_transmission'):
+                    node.material['KHR_materials_transmission'] = src_mat['KHR_materials_transmission']
+
+        # Tier 2: Embedded MaterialData stream (glb_to_max.py round-trip files)
+        elif emb_mesh_map and node.material is None:
+            emb_matched = None
+            if name in emb_mesh_map:
+                emb_matched = name
+            else:
+                stripped = name.strip()
+                if stripped in emb_mesh_map:
+                    emb_matched = stripped
+            if emb_matched is not None:
+                mat_idx = emb_mesh_map[emb_matched]
+                if isinstance(mat_idx, str):
+                    mat_idx = int(mat_idx)
+                if mat_idx < len(emb_materials):
+                    emb_mat = emb_materials[mat_idx]
+                    node.material = {
+                        'baseColorFactor': emb_mat.get('baseColorFactor', [1, 1, 1, 1]),
+                        'metallicFactor': emb_mat.get('metallicFactor', 1.0),
+                        'roughnessFactor': emb_mat.get('roughnessFactor', 1.0),
+                        'emissiveFactor': emb_mat.get('emissiveFactor', [0, 0, 0]),
+                        'alphaMode': emb_mat.get('alphaMode', 'OPAQUE'),
+                        'doubleSided': emb_mat.get('doubleSided', False),
+                        'alphaCutoff': emb_mat.get('alphaCutoff'),
+                    }
+                    tex_imgs = {}
+                    if emb_mat.get('baseColorTexture') is not None:
+                        img_idx = emb_mat['baseColorTexture']
+                        if img_idx in emb_images:
+                            tex_imgs['baseColor'] = emb_images[img_idx]
+                    if emb_mat.get('metallicRoughnessTexture') is not None:
+                        img_idx = emb_mat['metallicRoughnessTexture']
+                        if img_idx in emb_images:
+                            tex_imgs['metallicRoughness'] = emb_images[img_idx]
+                    if emb_mat.get('normalTexture') is not None:
+                        img_idx = emb_mat['normalTexture']
+                        if img_idx in emb_images:
+                            tex_imgs['normal'] = emb_images[img_idx]
+                            node.material['normalScale'] = emb_mat.get('normalScale', 1.0)
+                    if emb_mat.get('transmissionTexture') is not None:
+                        img_idx = emb_mat['transmissionTexture']
+                        if img_idx in emb_images:
+                            tex_imgs['transmission'] = emb_images[img_idx]
+                    # Pass through KHR extension data from round-trip
+                    if emb_mat.get('KHR_materials_ior'):
+                        node.material['KHR_materials_ior'] = emb_mat['KHR_materials_ior']
+                    if emb_mat.get('KHR_materials_transmission'):
+                        node.material['KHR_materials_transmission'] = emb_mat['KHR_materials_transmission']
+                    node.texture_images = tex_imgs
+
+        # Tier 3: .max material chunks (for real .max files from 3DS MAX)
+        elif mat is not None and node.material is None:
+            max_mat = extract_material(mat)
+            if max_mat:
+                diffuse = max_mat.get('diffuse', (0.8, 0.8, 0.8))
+                opacity = max_mat.get('opacity', 1.0)
+                if not isinstance(opacity, (int, float)):
+                    opacity = 1.0
+                metallic = max_mat.get('metallic', 0.0)
+                shinines = max_mat.get('shinines', 0.6)
+                emissive = max_mat.get('emissive', (0.0, 0.0, 0.0))
+                # Derive alpha transparency for refractive materials
+                # Glass in 3DS Max: trans_depth > 0 with IOR, but transparency=0.0
+                # Also: transmap without bitmap = map-only transparent material
+                ior_val = max_mat.get('ior') or max_mat.get('refraction')
+                trans_depth = max_mat.get('trans_depth', 0)
+                has_transmap = max_mat.get('transmap') is not None
+                has_bitmap = max_mat.get('bitmap') is not None
+                is_glass = trans_depth > 0 or (has_transmap and not has_bitmap)
+                if is_glass and opacity >= 1.0:
+                    opacity = 0.1
+                is_transparent = opacity < 1.0
+                node.material = {
+                    'baseColorFactor': [diffuse[0], diffuse[1], diffuse[2], opacity],
+                    'metallicFactor': metallic,
+                    'roughnessFactor': 1.0 - shinines,
+                    'emissiveFactor': list(emissive),
+                    'alphaMode': 'BLEND' if is_transparent else 'OPAQUE',
+                    'doubleSided': is_transparent,
+                }
+                # KHR material extensions for refractive/transparent materials
+                if khr and is_glass and ior_val is not None and ior_val > 1.0:
+                    node.material['KHR_materials_ior'] = {'ior': ior_val}
+                    node.material['KHR_materials_transmission'] = {'transmissionFactor': 1.0}
+                # Load texture files from disk
+                if max_dirname:
+                    tex_imgs = {}
+                    bitmap = max_mat.get('bitmap')
+                    if bitmap:
+                        image = load_external_image(bitmap)
+                        if image:
+                            tex_imgs['baseColor'] = image
+                    normalmap = max_mat.get('normalmap')
+                    if normalmap:
+                        image = load_external_image(normalmap)
+                        if image:
+                            tex_imgs['normal'] = image
+                            node.material['normalScale'] = max_mat.get('strength', 0.8)
+                    # Roughness texture (shinmap or glossmap)
+                    shinmap = max_mat.get('shinmap')
+                    if not shinmap:
+                        shinmap = max_mat.get('glossmap')
+                    if shinmap:
+                        if _is_packed_metal_roughness(shinmap):
+                            image = load_external_image(shinmap)
+                            if image:
+                                tex_imgs['metallicRoughness'] = image
+                        else:
+                            skipped_scalar_maps.add(_basename_any(shinmap))
+                    # Transparency texture (transmap) — only for glass/transparent materials
+                    if is_glass:
+                        transmap = max_mat.get('transmap')
+                        if transmap:
+                            image = load_external_image(transmap)
+                            if image:
+                                tex_imgs['transmission'] = image
+                    node.texture_images = tex_imgs
+
+        if double_sided:
+            if node.material is None:
+                node.material = {
+                    'baseColorFactor': [0.8, 0.8, 0.8, 1.0],
+                    'metallicFactor': 0.0,
+                    'roughnessFactor': 1.0,
+                    'emissiveFactor': [0.0, 0.0, 0.0],
+                    'alphaMode': 'OPAQUE',
+                    'doubleSided': True,
+                }
+            else:
+                node.material['doubleSided'] = True
+
+        results.append(node)
+        scene_chunks.append(chunk)
+
+    if reconstructed_types:
+        details = ", ".join(
+            "%s/0x%016X=%d" % (class_name, uid, count)
+            for (uid, class_name), count in
+            sorted(reconstructed_types.items(), key=lambda item: -item[1]))
+        print("  Reconstructed native primitives/modifiers: %s" % details)
+    if unsupported_types:
+        total_unsupported = sum(record[0] for record in unsupported_types.values())
+        print("  Unsupported geometry objects: %d across %d class(es)" %
+              (total_unsupported, len(unsupported_types)))
+        for (uid, class_name), (count, samples) in sorted(
+                unsupported_types.items(), key=lambda item: -item[1][0])[:20]:
+            print("    SKIPPED %s / 0x%016X: %d (%s)" %
+                  (class_name, uid, count, ", ".join(samples)))
+    if skipped_scalar_maps:
+        print("  Kept scalar roughness for %d standalone gloss/roughness map(s); "
+              "only explicitly packed ORM/MR textures are embedded in that slot" %
+              len(skipped_scalar_maps))
+
+    # --- Extras pass: cameras, lights, empties (when --extras is enabled) ---
+    if extras:
+        # Camera UIDs
+        CAMERA_UIDS = {0x1002, 0x1020}
+        # Light UIDs
+        LIGHT_UIDS = {0x1011, 0x1013}
+        # Extended light UIDs (VRay etc.)
+        EXT_LIGHT_UIDS = {0x5FD602DF3C5575A1}
+
+        for chunk in SCENE_LIST[0].children:
+            if not isinstance(chunk, SceneChunk):
+                continue
+            uid = get_guid(chunk)
+            sid = get_super_id(chunk)
+
+            name = _get_chunk_name(chunk)
+            translation, rotation_xyzw, scale = _extract_node_trs(chunk)
+
+            if uid in CAMERA_UIDS:
+                node = GLBNode(name)
+                node.has_mesh = False
+                node.translation = translation
+                node.rotation_xyzw = rotation_xyzw
+                node.scale = scale
+                # Extract camera parameters
+                node.camera = {
+                    'type': 'perspective',
+                    'yfov': 0.7854,  # ~45 degrees default
+                    'znear': 0.1,
+                    'zfar': 10000.0,
+                }
+                # Try to extract FOV from camera params
+                try:
+                    prs, msh, mat = get_matrix_mesh_material(chunk)
+                    if msh:
+                        refs = get_references(msh)
+                        if refs:
+                            for ref in refs:
+                                fov_chunk = ref.get_first(0x2501) if ref else None
+                                if fov_chunk and fov_chunk.data:
+                                    fov_val = fov_chunk.data[0]
+                                    if 0.01 < fov_val < 3.2:  # reasonable FOV range in radians
+                                        node.camera['yfov'] = fov_val
+                                        break
+                except:
+                    pass
+                results.append(node)
+                scene_chunks.append(chunk)
+
+            elif uid in LIGHT_UIDS or uid in EXT_LIGHT_UIDS:
+                node = GLBNode(name)
+                node.has_mesh = False
+                node.translation = translation
+                node.rotation_xyzw = rotation_xyzw
+                node.scale = scale
+                # Determine light type
+                if uid == 0x1013:
+                    light_type = 'directional'
+                else:
+                    light_type = 'point'
+                node.light = {
+                    'type': light_type,
+                    'color': [1.0, 1.0, 1.0],
+                    'intensity': 1.0,
+                }
+                results.append(node)
+                scene_chunks.append(chunk)
+
+            elif uid == DUMMY or (uid in {0x1, 0x14} and sid <= 0x1):
+                # Dummy/helper objects - skip if already added as mesh
+                already_added = any(
+                    c is chunk for c in scene_chunks)
+                if not already_added:
+                    node = GLBNode(name)
+                    node.has_mesh = False
+                    node.translation = translation
+                    node.rotation_xyzw = rotation_xyzw
+                    node.scale = scale
+                    results.append(node)
+                    scene_chunks.append(chunk)
+
+    # --- Build hierarchy ---
+    # Map scene chunk id -> GLBNode index
+    chunk_to_idx = {}
+    for i, sc in enumerate(scene_chunks):
+        chunk_to_idx[id(sc)] = i
+
+    # Identify the scene RootNode (always first child, or uid 0x2)
+    scene_root = SCENE_LIST[0].children[0] if SCENE_LIST[0].children else None
+
+    def _is_root_node(chunk):
+        """Check if a chunk is the scene RootNode (should not become a GLB node)."""
+        if chunk is scene_root:
+            return True
+        uid = get_guid(chunk)
+        return uid == 0x2
+
+    # Discover parent-child relationships
+    child_set = set()  # indices that are children of something
+    for i, sc in enumerate(scene_chunks):
+        parent_chunk = get_node_parent(sc)
+        if parent_chunk is None:
+            continue
+        # Skip RootNode - children of RootNode are scene roots
+        if _is_root_node(parent_chunk):
+            continue
+        parent_id = id(parent_chunk)
+        if parent_id in chunk_to_idx:
+            # Parent is already in our results
+            parent_idx = chunk_to_idx[parent_id]
+            if i not in results[parent_idx].children:
+                results[parent_idx].children.append(i)
+            child_set.add(i)
+        else:
+            # Parent is a non-mesh node not yet in our list - create empty group node
+            parent_name = _get_chunk_name(parent_chunk)
+            parent_trs = _extract_node_trs(parent_chunk)
+            group_node = GLBNode(parent_name)
+            group_node.has_mesh = False
+            group_node.translation = parent_trs[0]
+            group_node.rotation_xyzw = parent_trs[1]
+            group_node.scale = parent_trs[2]
+            parent_idx = len(results)
+            results.append(group_node)
+            scene_chunks.append(parent_chunk)
+            chunk_to_idx[id(parent_chunk)] = parent_idx
+            group_node.children.append(i)
+            child_set.add(i)
+            # Check if this new group node also has a parent
+            grandparent = get_node_parent(parent_chunk)
+            if grandparent and not _is_root_node(grandparent):
+                if id(grandparent) in chunk_to_idx:
+                    gp_idx = chunk_to_idx[id(grandparent)]
+                    if parent_idx not in results[gp_idx].children:
+                        results[gp_idx].children.append(parent_idx)
+                    child_set.add(parent_idx)
+
+    # Mark children so write_glb knows which nodes are roots
+    for i in child_set:
+        results[i]._is_child = True
+
+    return results
+
+
+###############################################################################
+# GLB Writer
+###############################################################################
+
+def _compute_bounds(positions):
+    """Compute min/max bounds for position data."""
+    if not positions:
+        return [0, 0, 0], [0, 0, 0]
+    mins = [positions[0], positions[1], positions[2]]
+    maxs = [positions[0], positions[1], positions[2]]
+    for i in range(0, len(positions), 3):
+        for j in range(3):
+            v = positions[i + j]
+            if v < mins[j]:
+                mins[j] = v
+            if v > maxs[j]:
+                maxs[j] = v
+    return mins, maxs
+
+
+def _pad4(data):
+    """Pad bytes to 4-byte boundary."""
+    rem = len(data) % 4
+    if rem:
+        data += b'\x00' * (4 - rem)
+    return data
+
+
+def _append_numeric_bytes(target, values, typecode):
+    """Append a numeric sequence without struct.pack's huge argument tuple."""
+    if isinstance(values, array.array) and values.typecode == typecode:
+        packed = values
+    else:
+        packed = array.array(typecode, values)
+    if sys.byteorder != 'little':
+        packed = array.array(typecode, packed)
+        packed.byteswap()
+    view = memoryview(packed).cast('B')
+    try:
+        length = view.nbytes
+        target.extend(view)
+        return length
+    finally:
+        view.release()
+
+
+def write_glb(filepath, glb_nodes):
+    """Write a GLB file from a list of GLBNodes, including materials and textures."""
+    # Build binary buffer
+    bin_data = bytearray()
+    buffer_views = []
+    accessors = []
+    meshes = []
+    nodes = []
+    scene_nodes = []
+
+    # --- Collect unique images and materials across all nodes ---
+    # CRC narrows candidates cheaply; exact byte comparison prevents a hash
+    # collision from merging two different images.
+    image_registry = {}  # (mime, byte_length, crc32) -> [image_index, ...]
+    texture_registry = {}  # image_index -> texture_index
+    gltf_images = []     # [{bufferView, mimeType}, ...]
+    image_bytes_list = [] # [bytes, ...]
+
+    def register_texture(image_info):
+        _img_name, img_bytes, img_mime = image_info
+        signature = (img_mime, len(img_bytes), zlib.crc32(img_bytes))
+        img_idx = None
+        for candidate in image_registry.get(signature, ()):
+            if image_bytes_list[candidate] == img_bytes:
+                img_idx = candidate
+                break
+        if img_idx is None:
+            img_idx = len(gltf_images)
+            gltf_images.append({"mimeType": img_mime})
+            image_bytes_list.append(img_bytes)
+            image_registry.setdefault(signature, []).append(img_idx)
+        tex_idx = texture_registry.get(img_idx)
+        if tex_idx is None:
+            tex_idx = len(gltf_textures)
+            gltf_textures.append({"source": img_idx, "sampler": 0})
+            texture_registry[img_idx] = tex_idx
+        return tex_idx
+
+    # material_key -> material_index
+    gltf_materials = []
+    gltf_textures = []
+    node_material_idx = {}  # node_index -> material_index
+
+    has_any_material = any(gn.material for gn in glb_nodes)
+
+    if has_any_material:
+        for ni, gnode in enumerate(glb_nodes):
+            if not gnode.material:
+                continue
+
+            mat_def = {
+                "pbrMetallicRoughness": {}
+            }
+            pbr = mat_def["pbrMetallicRoughness"]
+
+            # Base color factor
+            bcf = gnode.material.get('baseColorFactor', [1, 1, 1, 1])
+            pbr["baseColorFactor"] = bcf
+
+            # Metallic/roughness factors
+            pbr["metallicFactor"] = gnode.material.get('metallicFactor', 1.0)
+            pbr["roughnessFactor"] = gnode.material.get('roughnessFactor', 1.0)
+
+            # Base color texture
+            if 'baseColor' in gnode.texture_images:
+                tex_idx = register_texture(gnode.texture_images['baseColor'])
+                pbr["baseColorTexture"] = {"index": tex_idx}
+
+            # Metallic-roughness texture
+            if 'metallicRoughness' in gnode.texture_images:
+                tex_idx = register_texture(gnode.texture_images['metallicRoughness'])
+                pbr["metallicRoughnessTexture"] = {"index": tex_idx}
+
+            # Emissive
+            emf = gnode.material.get('emissiveFactor', [0, 0, 0])
+            if any(v > 0 for v in emf):
+                mat_def["emissiveFactor"] = emf
+
+            # Normal texture
+            if 'normal' in gnode.texture_images:
+                tex_idx = register_texture(gnode.texture_images['normal'])
+                nt = {"index": tex_idx}
+                ns = gnode.material.get('normalScale', 1.0)
+                if abs(ns - 1.0) > 1e-6:
+                    nt["scale"] = ns
+                mat_def["normalTexture"] = nt
+
+            # Transmission texture (only emit when KHR_materials_transmission is present)
+            if 'transmission' in gnode.texture_images and gnode.material.get('KHR_materials_transmission'):
+                tex_idx = register_texture(gnode.texture_images['transmission'])
+                # Store texture index for KHR extension reference
+                gnode.material['_transmissionTexIdx'] = tex_idx
+
+            # Alpha mode
+            alpha = gnode.material.get('alphaMode', 'OPAQUE')
+            if alpha != 'OPAQUE':
+                mat_def["alphaMode"] = alpha
+            if alpha == 'MASK':
+                cutoff = gnode.material.get('alphaCutoff')
+                if cutoff is not None:
+                    mat_def["alphaCutoff"] = cutoff
+
+            # Double sided
+            if gnode.material.get('doubleSided', False):
+                mat_def["doubleSided"] = True
+
+            # KHR material extensions
+            mat_extensions = {}
+            if gnode.material.get('KHR_materials_transmission'):
+                trans_ext = dict(gnode.material['KHR_materials_transmission'])
+                # Add transmission texture reference if available
+                if '_transmissionTexIdx' in gnode.material:
+                    trans_ext['transmissionTexture'] = {"index": gnode.material['_transmissionTexIdx']}
+                mat_extensions['KHR_materials_transmission'] = trans_ext
+            if gnode.material.get('KHR_materials_ior'):
+                mat_extensions['KHR_materials_ior'] = gnode.material['KHR_materials_ior']
+            if mat_extensions:
+                mat_def['extensions'] = mat_extensions
+
+            mat_idx = len(gltf_materials)
+            gltf_materials.append(mat_def)
+            node_material_idx[ni] = mat_idx
+            # Unique image payloads now live in image_bytes_list; release all
+            # per-node dictionaries, including duplicate bytes objects.
+            gnode.texture_images = {}
+
+    # --- Collect cameras and lights ---
+    gltf_cameras = []
+    gltf_lights = []
+    node_camera_idx = {}   # glb_node_index -> camera_index
+    node_light_idx = {}    # glb_node_index -> light_index
+
+    for ni, gnode in enumerate(glb_nodes):
+        if gnode.camera:
+            cam_idx = len(gltf_cameras)
+            cam_def = {
+                "type": gnode.camera.get('type', 'perspective'),
+            }
+            if cam_def["type"] == "perspective":
+                cam_def["perspective"] = {
+                    "yfov": gnode.camera.get('yfov', 0.7854),
+                    "znear": gnode.camera.get('znear', 0.1),
+                    "zfar": gnode.camera.get('zfar', 10000.0),
+                }
+            gltf_cameras.append(cam_def)
+            node_camera_idx[ni] = cam_idx
+
+        if gnode.light:
+            light_idx = len(gltf_lights)
+            light_def = {
+                "type": gnode.light.get('type', 'point'),
+                "color": gnode.light.get('color', [1.0, 1.0, 1.0]),
+                "intensity": gnode.light.get('intensity', 1.0),
+            }
+            gltf_lights.append(light_def)
+            node_light_idx[ni] = light_idx
+
+    # --- Build mesh geometry data and nodes ---
+    node_idx_map = {}  # glb_node_index -> glTF node index
+    for ni, gnode in enumerate(glb_nodes):
+        if gnode.has_mesh and gnode.positions and gnode.indices:
+            mesh_primitives = []
+
+            # Positions
+            pos_bv_offset = len(bin_data)
+            pos_byte_length = _append_numeric_bytes(bin_data, gnode.positions, 'f')
+            bin_data.extend(b'\x00' * ((-len(bin_data)) % 4))
+            pos_bv_idx = len(buffer_views)
+            buffer_views.append({
+                "buffer": 0,
+                "byteOffset": pos_bv_offset,
+                "byteLength": pos_byte_length,
+                "target": 34962,
+            })
+            mins, maxs = _compute_bounds(gnode.positions)
+            pos_acc_idx = len(accessors)
+            accessors.append({
+                "bufferView": pos_bv_idx,
+                "componentType": 5126,
+                "count": len(gnode.positions) // 3,
+                "type": "VEC3",
+                "min": mins,
+                "max": maxs,
+            })
+
+            # Indices
+            max_idx = max(gnode.indices) if gnode.indices else 0
+            use_uint16 = max_idx <= 65535
+            idx_bv_offset = len(bin_data)
+            if use_uint16:
+                idx_byte_length = _append_numeric_bytes(bin_data, gnode.indices, 'H')
+            else:
+                idx_byte_length = _append_numeric_bytes(bin_data, gnode.indices, 'I')
+            bin_data.extend(b'\x00' * ((-len(bin_data)) % 4))
+            idx_bv_idx = len(buffer_views)
+            buffer_views.append({
+                "buffer": 0,
+                "byteOffset": idx_bv_offset,
+                "byteLength": idx_byte_length,
+                "target": 34963,
+            })
+            idx_acc_idx = len(accessors)
+            accessors.append({
+                "bufferView": idx_bv_idx,
+                "componentType": 5123 if use_uint16 else 5125,
+                "count": len(gnode.indices),
+                "type": "SCALAR",
+            })
+
+            # Primitive
+            prim = {
+                "attributes": {"POSITION": pos_acc_idx},
+                "indices": idx_acc_idx,
+            }
+
+            # UVs
+            if gnode.uvs:
+                uv_bv_offset = len(bin_data)
+                uv_byte_length = _append_numeric_bytes(bin_data, gnode.uvs, 'f')
+                bin_data.extend(b'\x00' * ((-len(bin_data)) % 4))
+                uv_bv_idx = len(buffer_views)
+                buffer_views.append({
+                    "buffer": 0,
+                    "byteOffset": uv_bv_offset,
+                    "byteLength": uv_byte_length,
+                    "target": 34962,
+                })
+                uv_acc_idx = len(accessors)
+                accessors.append({
+                    "bufferView": uv_bv_idx,
+                    "componentType": 5126,
+                    "count": len(gnode.uvs) // 2,
+                    "type": "VEC2",
+                })
+                prim["attributes"]["TEXCOORD_0"] = uv_acc_idx
+
+            # Assign material to primitive
+            if ni in node_material_idx:
+                prim["material"] = node_material_idx[ni]
+
+            mesh_primitives.append(prim)
+            mesh_idx = len(meshes)
+            meshes.append({"name": gnode.name, "primitives": mesh_primitives})
+
+            # Geometry is now packed in bin_data; release the per-node arrays as
+            # the writer advances instead of retaining two complete copies.
+            gnode.positions = None
+            gnode.indices = None
+            gnode.uvs = None
+
+            node_def = {"name": gnode.name, "mesh": mesh_idx}
+        else:
+            # Non-mesh node (empty/group/camera/light)
+            node_def = {"name": gnode.name}
+
+        # Camera reference
+        if ni in node_camera_idx:
+            node_def["camera"] = node_camera_idx[ni]
+
+        # Light reference (KHR_lights_punctual)
+        if ni in node_light_idx:
+            node_def["extensions"] = {
+                "KHR_lights_punctual": {"light": node_light_idx[ni]}
+            }
+
+        # Only include non-identity transforms
+        t = gnode.translation
+        if not (abs(t[0]) < 1e-7 and abs(t[1]) < 1e-7 and abs(t[2]) < 1e-7):
+            node_def["translation"] = t
+        r = gnode.rotation_xyzw
+        if not (abs(r[0]) < 1e-7 and abs(r[1]) < 1e-7 and abs(r[2]) < 1e-7
+                and abs(r[3] - 1.0) < 1e-7):
+            node_def["rotation"] = r
+        s = gnode.scale
+        if not (abs(s[0] - 1) < 1e-7 and abs(s[1] - 1) < 1e-7 and abs(s[2] - 1) < 1e-7):
+            node_def["scale"] = s
+
+        gltf_node_idx = len(nodes)
+        node_idx_map[ni] = gltf_node_idx
+        nodes.append(node_def)
+
+        # Only root nodes go in scene_nodes
+        if not gnode._is_child:
+            scene_nodes.append(gltf_node_idx)
+
+    # --- Wire up children arrays in glTF nodes ---
+    for ni, gnode in enumerate(glb_nodes):
+        if gnode.children:
+            gltf_idx = node_idx_map[ni]
+            child_gltf_indices = []
+            for child_ni in gnode.children:
+                if child_ni in node_idx_map:
+                    child_gltf_indices.append(node_idx_map[child_ni])
+            if child_gltf_indices:
+                nodes[gltf_idx]["children"] = child_gltf_indices
+
+    # --- Append image data to binary buffer ---
+    for i in range(len(image_bytes_list)):
+        img_bytes = image_bytes_list[i]
+        img_bv_offset = len(bin_data)
+        bin_data.extend(img_bytes)
+        bin_data.extend(b'\x00' * ((-len(bin_data)) % 4))
+        img_bv_idx = len(buffer_views)
+        buffer_views.append({
+            "buffer": 0,
+            "byteOffset": img_bv_offset,
+            "byteLength": len(img_bytes),
+        })
+        gltf_images[i]["bufferView"] = img_bv_idx
+        image_bytes_list[i] = None
+
+    # Build glTF JSON
+    gltf = {
+        "asset": {"version": "2.0", "generator": "max_to_glb.py"},
+        "scene": 0,
+        "scenes": [{"nodes": scene_nodes}],
+        "nodes": nodes,
+    }
+
+    if meshes:
+        gltf["meshes"] = meshes
+    if accessors or buffer_views:
+        gltf["accessors"] = accessors
+        gltf["bufferViews"] = buffer_views
+        gltf["buffers"] = [{"byteLength": len(bin_data)}]
+
+    if gltf_materials:
+        gltf["materials"] = gltf_materials
+    if gltf_textures:
+        gltf["textures"] = gltf_textures
+        gltf["samplers"] = [{"magFilter": 9729, "minFilter": 9987}]
+    if gltf_images:
+        gltf["images"] = gltf_images
+    if gltf_cameras:
+        gltf["cameras"] = gltf_cameras
+    # Collect all used extensions
+    extensions_used = set()
+    for mat in gltf_materials:
+        if 'extensions' in mat:
+            extensions_used.update(mat['extensions'].keys())
+    if gltf_lights:
+        gltf["extensions"] = {
+            "KHR_lights_punctual": {"lights": gltf_lights}
+        }
+        extensions_used.add("KHR_lights_punctual")
+    if extensions_used:
+        gltf["extensionsUsed"] = sorted(extensions_used)
+
+    json_str = json.dumps(gltf, separators=(',', ':'))
+    json_bytes = json_str.encode('utf-8')
+    # Pad JSON to 4-byte boundary with spaces
+    json_pad = (4 - len(json_bytes) % 4) % 4
+    json_bytes += b' ' * json_pad
+
+    # Pad BIN to 4-byte boundary
+    bin_pad = (4 - len(bin_data) % 4) % 4
+    bin_data.extend(b'\x00' * bin_pad)
+
+    # GLB header
+    total_length = 12 + 8 + len(json_bytes) + 8 + len(bin_data)
+
+    with open(filepath, 'wb') as f:
+        # GLB header: magic, version, length
+        f.write(struct.pack('<III', 0x46546C67, 2, total_length))
+        # JSON chunk: length, type, data
+        f.write(struct.pack('<II', len(json_bytes), 0x4E4F534A))
+        f.write(json_bytes)
+        # BIN chunk: length, type, data
+        f.write(struct.pack('<II', len(bin_data), 0x004E4942))
+        f.write(bin_data)
+
+
+###############################################################################
+# Main Entry Point
+###############################################################################
+
+def convert_max_to_glb(max_path, glb_path, source_glb=None, extras=False, khr=False,
+                       asset_root=None, delete_input=False, double_sided=False):
+    """Convert a .max file to a .glb file.
+
+    Args:
+        max_path: path to input .max file
+        glb_path: path to output .glb file
+        source_glb: optional path to original .glb for texture extraction
+        extras: if True, also export cameras, lights, and empties
+        khr: if True, emit KHR_materials_transmission/ior extensions
+        double_sided: if True, disable material back-face culling
+        asset_root: optional directory searched recursively for external textures;
+                    useful when max_path is a browser-mounted read-only file
+        delete_input: release the input file after parsing (browser scratch files)
+    """
+    _release_chunk_streams(clear_chunks=True)
+    print("Parsing MAX: %s" % max_path)
+
+    if not is_maxfile(max_path):
+        print("Error: Not a valid .max file!")
+        return False
+
+    maxfile = ImportMaxFile(max_path)
+
+    read_class_data(maxfile)
+    read_config(maxfile)
+    read_directory(maxfile)
+    read_class_directory(maxfile)
+    read_video_postqueue(maxfile)
+
+    # Read metadata stream (for .max material texture paths)
+    global SCENE_LIST, META_DATA
+    try:
+        metasid = max(entry.sid for entry in maxfile.direntries if entry is not None)
+        META_DATA = read_chunks(maxfile, maxfile.direntries[metasid].name, superId=metasid) if metasid >= 0xA else []
+    except:
+        META_DATA = []
+
+    try:
+        SCENE_LIST = read_chunks(maxfile, 'Scene', SceneChunk)
+    except Exception:
+        maxfile.close()
+        _release_chunk_streams(clear_chunks=True)
+        raise
+
+    # Try to read embedded MaterialData stream (from glb_to_max.py round-trip files)
+    embedded_material_data = None
+    try:
+        embedded_material_data = read_material_data(maxfile)
+        if embedded_material_data:
+            emb_imgs, emb_mats, emb_map = embedded_material_data
+            print("  Found embedded MaterialData: %d material(s), %d image(s), %d mapping(s)" %
+                  (len(emb_mats), len(emb_imgs), len(emb_map)))
+    except Exception as exc:
+        print("  MaterialData read failed (not a round-trip file): %s" % exc)
+        embedded_material_data = None
+
+    # All OLE streams needed by the converter are now parsed. In the browser the
+    # MAX lives in a scratch MEMFS file, so closing and unlinking it here returns
+    # that memory before geometry expansion and GLB construction begin.
+    maxfile.close()
+    maxfile = None
+    if delete_input:
+        try:
+            os.remove(max_path)
+        except OSError:
+            pass
+    gc.collect()
+
+    # Parse source GLB for textures if provided
+    source_glb_data = None
+    if source_glb:
+        print("  Parsing source GLB for textures: %s" % source_glb)
+        try:
+            source_glb_data = parse_source_glb(source_glb)
+            imgs, mats, mesh_map = source_glb_data
+            print("    Found %d image(s), %d material(s), %d mesh mapping(s)" %
+                  (len(imgs), len(mats), len(mesh_map)))
+        except Exception as exc:
+            print("    Warning: failed to parse source GLB: %s" % exc)
+            source_glb_data = None
+
+    max_dirname = (os.path.abspath(asset_root) if asset_root else
+                   os.path.dirname(os.path.abspath(max_path)))
+
+    print("  Walking scene tree...")
+    glb_nodes = walk_scene(source_glb_data, max_dirname, embedded_material_data,
+                           extras=extras, khr=khr, double_sided=double_sided)
+    _release_chunk_streams(clear_chunks=True)
+    mesh_count = sum(1 for gn in glb_nodes if gn.has_mesh)
+    extra_count = sum(1 for gn in glb_nodes if not gn.has_mesh)
+    print("  Found %d mesh object(s), %d non-mesh node(s)" % (mesh_count, extra_count))
+
+    if not glb_nodes:
+        print("  Warning: no objects found!")
+        return False
+
+    mat_count = sum(1 for gn in glb_nodes if gn.material)
+    tex_count = sum(len(gn.texture_images) for gn in glb_nodes)
+    for gn in glb_nodes:
+        if gn.has_mesh:
+            nv = len(gn.positions) // 3
+            nt = len(gn.indices) // 3
+            has_uv = "yes" if gn.uvs else "no"
+            has_mat = "yes" if gn.material else "no"
+            n_tex = len(gn.texture_images)
+            kind = "mesh"
+        else:
+            nv = nt = 0
+            has_uv = has_mat = "n/a"
+            n_tex = 0
+            if gn.camera:
+                kind = "camera"
+            elif gn.light:
+                kind = "light"
+            else:
+                kind = "empty"
+        children_str = " children=%d" % len(gn.children) if gn.children else ""
+        print("    '%s' [%s]: %d verts, %d tris, UV=%s, mat=%s, tex=%d%s" %
+              (gn.name, kind, nv, nt, has_uv, has_mat, n_tex, children_str))
+
+    print("  Materials: %d, Textures: %d" % (mat_count, tex_count))
+    print("  Writing GLB: %s" % glb_path)
+    write_glb(glb_path, glb_nodes)
+
+    size = os.path.getsize(glb_path)
+    print("  Success! File size: %d bytes" % size)
+    return True
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: python max_to_glb.py input.max [output.glb] [--source-glb original.glb] [--extras] [--khr] [--double-sided]")
+        sys.exit(1)
+
+    # Parse arguments
+    args = sys.argv[1:]
+    source_glb = None
+    extras = False
+    khr = False
+    double_sided = False
+    positional = []
+
+    i = 0
+    while i < len(args):
+        if args[i] == '--source-glb':
+            if i + 1 < len(args):
+                source_glb = args[i + 1]
+                i += 2
+            else:
+                print("Error: --source-glb requires a path argument")
+                sys.exit(1)
+        elif args[i] == '--extras':
+            extras = True
+            i += 1
+        elif args[i] == '--khr':
+            khr = True
+            i += 1
+        elif args[i] == '--double-sided':
+            double_sided = True
+            i += 1
+        else:
+            positional.append(args[i])
+            i += 1
+
+    if not positional:
+        print("Error: no input file specified")
+        sys.exit(1)
+
+    max_path = positional[0]
+    if not os.path.isfile(max_path):
+        print("Error: file not found: %s" % max_path)
+        sys.exit(1)
+
+    if len(positional) >= 2:
+        glb_path = positional[1]
+    else:
+        glb_path = os.path.splitext(max_path)[0] + '.glb'
+
+    if source_glb and not os.path.isfile(source_glb):
+        print("Error: source GLB not found: %s" % source_glb)
+        sys.exit(1)
+
+    success = convert_max_to_glb(
+        max_path, glb_path, source_glb, extras=extras, khr=khr,
+        double_sided=double_sided)
+    sys.exit(0 if success else 1)
+
+
+if __name__ == '__main__':
+    main()
+</script>
+<script src="./vendor/pyodide.js"></script>
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const drop = $('#drop');
+  const filesInput = $('#files');
+  const folderInput = $('#folder');
+  const selection = $('#selection');
+  const selectionCount = $('#selectionCount');
+  const selectionHint = $('#selectionHint');
+  const fileList = $('#fileList');
+  const clearButton = $('#clear');
+  const convertButton = $('#convert');
+  const engineDot = $('#engineDot');
+  const engineText = $('#engineText');
+  const results = $('#results');
+  const jobs = $('#jobs');
+  const logEl = $('#log');
+
+  const records = new Map();
+  const objectUrls = [];
+  let pyodide = null;
+  let ready = false;
+  let busy = false;
+  let dragDepth = 0;
+
+  const MAX_EXT = /\.max$/i;
+  const ZIP_EXT = /\.zip$/i;
+  const GLB_EXT = /\.glb$/i;
+  const IMAGE_EXT = /\.(png|jpe?g|webp)$/i;
+
+  function formatBytes(bytes) {
+    if (!Number.isFinite(bytes) || bytes < 1) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+    const value = bytes / Math.pow(1024, i);
+    return `${value.toFixed(i > 1 && value < 10 ? 1 : 0)} ${units[i]}`;
+  }
+
+  function kindOf(name) {
+    if (MAX_EXT.test(name)) return 'MAX';
+    if (ZIP_EXT.test(name)) return 'ZIP package';
+    if (GLB_EXT.test(name)) return 'source GLB';
+    if (IMAGE_EXT.test(name)) return 'texture';
+    return null;
+  }
+
+  function safeName(name) {
+    return String(name || 'file').replace(/[\\/:*?"<>|\x00-\x1f]/g, '_').replace(/^\.+$/, '_');
+  }
+
+  function safeRelativePath(path, fallback) {
+    const parts = String(path || fallback || 'file').replace(/\\/g, '/').split('/');
+    return parts.filter(p => p && p !== '.' && p !== '..').map(safeName).join('/') || safeName(fallback);
+  }
+
+  function recordKey(record) {
+    const f = record.file;
+    return `${record.path || f.name}\u0000${f.size}\u0000${f.lastModified}`;
+  }
+
+  function addRecords(incoming) {
+    let ignored = 0;
+    for (const rec of incoming) {
+      const file = rec && rec.file ? rec.file : rec;
+      if (!file || !kindOf(file.name)) { ignored++; continue; }
+      const path = rec && rec.path ? rec.path : (file.webkitRelativePath || file.name);
+      const normalized = { file, path };
+      records.set(recordKey(normalized), normalized);
+    }
+    renderSelection();
+    if (ignored) appendLog(`Ignored ${ignored} unsupported file${ignored === 1 ? '' : 's'}.`);
+  }
+
+  function renderSelection() {
+    const all = [...records.values()];
+    const maxFiles = all.filter(r => MAX_EXT.test(r.file.name));
+    const archives = all.filter(r => ZIP_EXT.test(r.file.name));
+    const sources = all.filter(r => GLB_EXT.test(r.file.name));
+    const assets = all.filter(r => IMAGE_EXT.test(r.file.name));
+    selection.classList.toggle('show', all.length > 0);
+    selectionCount.textContent = all.length ? `${maxFiles.length} loose MAX · ${archives.length} ZIP · ${assets.length} texture${assets.length === 1 ? '' : 's'} · ${sources.length} source GLB` : 'No files selected';
+    selectionHint.textContent = maxFiles.length || archives.length
+      ? `${formatBytes([...maxFiles, ...archives].reduce((n, r) => n + r.file.size, 0))} queued${archives.length ? ' · ZIP contents are inspected at conversion time' : ''}`
+      : 'Add at least one MAX file';
+    fileList.replaceChildren();
+    const shown = all.slice(0, 80);
+    for (const rec of shown) {
+      const row = document.createElement('div');
+      row.className = 'file-row';
+      row.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3h8l4 4v14H6V3Zm8 0v5h5" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg><span class="name"></span><span class="tag"></span>`;
+      row.querySelector('.name').textContent = rec.path || rec.file.name;
+      row.querySelector('.tag').textContent = `${kindOf(rec.file.name)} · ${formatBytes(rec.file.size)}`;
+      fileList.appendChild(row);
+    }
+    if (all.length > shown.length) {
+      const more = document.createElement('div');
+      more.className = 'file-row';
+      more.innerHTML = `<span></span><span class="name">+ ${all.length - shown.length} more files</span><span></span>`;
+      fileList.appendChild(more);
+    }
+    convertButton.disabled = !ready || busy || (maxFiles.length === 0 && archives.length === 0);
+  }
+
+  function appendLog(message) {
+    const text = String(message == null ? '' : message).replace(/\r/g, '');
+    if (!text.trim()) return;
+    results.classList.add('show');
+    logEl.classList.add('show');
+    logEl.textContent += text.endsWith('\n') ? text : text + '\n';
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function setEngine(state, text) {
+    engineDot.className = `engine-dot ${state}`;
+    engineText.textContent = text;
+  }
+
+  function makeJob(record) {
+    results.classList.add('show');
+    const el = document.createElement('article');
+    el.className = 'job';
+    el.innerHTML = `<div class="job-main"><span class="job-dot"></span><div><div class="job-name"></div><div class="job-meta">Queued</div></div></div>`;
+    el.querySelector('.job-name').textContent = record.name || record.file.name;
+    jobs.appendChild(el);
+    return {
+      el,
+      dot: el.querySelector('.job-dot'),
+      meta: el.querySelector('.job-meta'),
+      main: el.querySelector('.job-main'),
+    };
+  }
+
+  function updateJob(job, state, meta) {
+    job.dot.className = `job-dot ${state}`;
+    job.meta.textContent = meta;
+  }
+
+  function addDownload(job, blob, name, stats) {
+    const url = URL.createObjectURL(blob);
+    objectUrls.push(url);
+    const a = document.createElement('a');
+    a.className = 'button download';
+    a.href = url;
+    a.download = name;
+    a.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4M5 19h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Download`;
+    job.main.appendChild(a);
+    const detail = [formatBytes(blob.size), `${stats.meshes} mesh${stats.meshes === 1 ? '' : 'es'}`, `${stats.nodes} node${stats.nodes === 1 ? '' : 's'}`, `${stats.materials} material${stats.materials === 1 ? '' : 's'}`];
+    updateJob(job, 'ok', detail.join(' · '));
+  }
+
+  async function fileFromEntry(entry, prefix = '') {
+    if (entry.isFile) {
+      const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+      return [{ file, path: prefix + file.name }];
+    }
+    if (!entry.isDirectory) return [];
+    const reader = entry.createReader();
+    const children = [];
+    while (true) {
+      const batch = await new Promise((resolve, reject) => reader.readEntries(resolve, reject));
+      if (!batch.length) break;
+      children.push(...batch);
+    }
+    const nested = await Promise.all(children.map(child => fileFromEntry(child, `${prefix}${entry.name}/`)));
+    return nested.flat();
+  }
+
+  async function droppedRecords(dataTransfer) {
+    const items = [...(dataTransfer.items || [])];
+    const found = [];
+    for (const item of items) {
+      if (item.kind && item.kind !== 'file') continue;
+      let entry = null;
+      try { entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null; }
+      catch (_) { entry = null; }
+
+      // The legacy FileEntry API can throw URI/Data-URL errors for large normal
+      // files. Use getAsFile() for files and reserve FileEntry traversal for an
+      // actual directory only.
+      if (entry && entry.isDirectory) {
+        try { found.push(...await fileFromEntry(entry)); }
+        catch (error) { appendLog(`Skipped folder ${entry.name}: ${error.message || error}`); }
+        continue;
+      }
+      const file = item.getAsFile && item.getAsFile();
+      if (file) {
+        found.push({ file, path: file.name });
+      } else if (entry && entry.isFile) {
+        try { found.push(...await fileFromEntry(entry)); }
+        catch (error) { appendLog(`Skipped file ${entry.name}: ${error.message || error}`); }
+      }
+    }
+    if (found.length) return found;
+    return [...dataTransfer.files].map(file => ({ file, path: file.webkitRelativePath || file.name }));
+  }
+
+  function chooseSource(maxRecord, sources) {
+    if (!sources.length) return null;
+    const base = (maxRecord.name || maxRecord.file.name).replace(/\.max$/i, '').toLowerCase();
+    const exact = sources.filter(r => (r.name || r.file.name).replace(/\.glb$/i, '').toLowerCase() === base);
+    return exact.find(r => r.archiveIndex != null && r.archiveIndex === maxRecord.archiveIndex) || exact[0] || (sources.length === 1 ? sources[0] : null);
+  }
+
+  function inspectGlb(bytes) {
+    try {
+      const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+      if (view.getUint32(0, true) !== 0x46546c67) throw new Error('bad GLB magic');
+      const jsonLength = view.getUint32(12, true);
+      const json = JSON.parse(new TextDecoder().decode(bytes.subarray(20, 20 + jsonLength)).trim());
+      return {
+        nodes: (json.nodes || []).length,
+        meshes: (json.meshes || []).length,
+        materials: (json.materials || []).length,
+        images: (json.images || []).length,
+      };
+    } catch (_) {
+      return { nodes: 0, meshes: 0, materials: 0, images: 0 };
+    }
+  }
+
+  function removeTree(path) {
+    try {
+      for (const name of pyodide.FS.readdir(path)) {
+        if (name === '.' || name === '..') continue;
+        const child = `${path}/${name}`;
+        if (pyodide.FS.isDir(pyodide.FS.stat(child).mode)) removeTree(child);
+        else pyodide.FS.unlink(child);
+      }
+      pyodide.FS.rmdir(path);
+    } catch (_) {}
+  }
+
+  async function writeBrowserFile(path, file) {
+    const slash = path.lastIndexOf('/');
+    if (slash > 0) pyodide.FS.mkdirTree(path.slice(0, slash));
+    // Stream large browser files into MEMFS in bounded chunks. Calling
+    // file.arrayBuffer() on the whole MAX briefly duplicated the entire input in
+    // JavaScript before Pyodide made its own copy.
+    const stream = pyodide.FS.open(path, 'w+');
+    const chunkSize = 8 * 1024 * 1024;
+    try {
+      if (file.size && pyodide.FS.allocate) pyodide.FS.allocate(stream, 0, file.size);
+      for (let offset = 0; offset < file.size; offset += chunkSize) {
+        const end = Math.min(file.size, offset + chunkSize);
+        const chunk = new Uint8Array(await file.slice(offset, end).arrayBuffer());
+        pyodide.FS.write(stream, chunk, 0, chunk.length, offset);
+        if (offset && offset % (64 * 1024 * 1024) === 0) {
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
+      }
+    } finally {
+      pyodide.FS.close(stream);
+    }
+  }
+
+  async function exposeBrowserFile(file, mountPath, fallbackPath) {
+    // WORKERFS is only safe inside a Web Worker; invoking it on the page's main
+    // thread aborts in current Pyodide builds. Keep the branch for a future
+    // worker-hosted engine and use bounded MEMFS streaming here.
+    const inWorker = typeof WorkerGlobalScope !== 'undefined' && self instanceof WorkerGlobalScope;
+    const workerFs = inWorker && pyodide.FS.filesystems && pyodide.FS.filesystems.WORKERFS;
+    if (workerFs) {
+      pyodide.FS.mkdirTree(mountPath);
+      try {
+        pyodide.FS.mount(workerFs, { files: [file] }, mountPath);
+        return { path: `${mountPath}/${file.name}`, mountPath, fallbackPath: null };
+      } catch (error) {
+        try { pyodide.FS.rmdir(mountPath); } catch (_) {}
+        appendLog(`Read-only file mount unavailable; using memory fallback: ${error.message || error}`);
+      }
+    }
+    await writeBrowserFile(fallbackPath, file);
+    return { path: fallbackPath, mountPath: null, fallbackPath };
+  }
+
+  function releaseBrowserFile(exposure, removeFallback = false) {
+    if (!exposure) return;
+    if (exposure.mountPath) {
+      try { pyodide.FS.unmount(exposure.mountPath); } catch (_) {}
+      try { pyodide.FS.rmdir(exposure.mountPath); } catch (_) {}
+    } else if (removeFallback && exposure.fallbackPath) {
+      try { pyodide.FS.unlink(exposure.fallbackPath); } catch (_) {}
+    }
+  }
+
+  async function extractArchive(record, archiveIndex, root, inputDir) {
+    const exposed = await exposeBrowserFile(
+      record.file,
+      `${root}/mounted_archive_${archiveIndex}`,
+      `${root}/archive_${archiveIndex}.zip`,
+    );
+    const zipPath = exposed.path;
+    const destination = `${inputDir}/assets/archive_${archiveIndex}`;
+    try {
+      const raw = await pyodide.runPythonAsync(`
+import json, os, re, shutil, stat, zipfile
+
+zip_path = ${JSON.stringify(zipPath)}
+destination = ${JSON.stringify(destination)}
+input_dir = ${JSON.stringify(inputDir)}
+archive_index = ${archiveIndex}
+allowed = {'.max', '.glb', '.png', '.jpg', '.jpeg', '.webp'}
+inventory = {'maxes': [], 'sources': [], 'textures': 0, 'skipped': 0}
+total_unpacked = 0
+max_unpacked = 8 * 1024 * 1024 * 1024
+
+with zipfile.ZipFile(zip_path, 'r') as package:
+    for member in package.infolist():
+        if member.is_dir():
+            continue
+        if member.flag_bits & 0x1:
+            raise ValueError('Encrypted ZIP entries are not supported')
+        raw_name = member.filename.replace('\\\\', '/')
+        if raw_name.startswith('/') or re.match(r'^[A-Za-z]:', raw_name):
+            inventory['skipped'] += 1
+            continue
+        parts = [part for part in raw_name.split('/') if part not in ('', '.')]
+        if not parts or '..' in parts or parts[0] == '__MACOSX':
+            inventory['skipped'] += 1
+            continue
+        mode = (member.external_attr >> 16) & 0o170000
+        if mode == stat.S_IFLNK:
+            inventory['skipped'] += 1
+            continue
+        extension = os.path.splitext(parts[-1])[1].lower()
+        if extension not in allowed:
+            inventory['skipped'] += 1
+            continue
+        total_unpacked += member.file_size
+        if total_unpacked > max_unpacked:
+            raise ValueError('ZIP contents exceed the 8 GiB browser extraction limit')
+
+        if extension == '.max':
+            target = os.path.join(input_dir, 'zip_%d_%d.max' %
+                                  (archive_index, len(inventory['maxes'])))
+        else:
+            target = os.path.join(destination, *parts)
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        with package.open(member, 'r') as source, open(target, 'wb') as output:
+            shutil.copyfileobj(source, output, 1024 * 1024)
+
+        item = {'path': target, 'name': parts[-1], 'size': member.file_size,
+                'archiveIndex': archive_index}
+        if extension == '.max':
+            inventory['maxes'].append(item)
+        elif extension == '.glb':
+            inventory['sources'].append(item)
+        else:
+            inventory['textures'] += 1
+
+json.dumps(inventory)
+      `);
+      return JSON.parse(String(raw));
+    } finally {
+      releaseBrowserFile(exposed, true);
+    }
+  }
+
+  async function convertAll() {
+    if (!ready || busy) return;
+    const all = [...records.values()];
+    const maxFiles = all.filter(r => MAX_EXT.test(r.file.name));
+    const archives = all.filter(r => ZIP_EXT.test(r.file.name));
+    const sources = all.filter(r => GLB_EXT.test(r.file.name));
+    const assets = all.filter(r => IMAGE_EXT.test(r.file.name));
+    if (!maxFiles.length && !archives.length) return;
+
+    busy = true;
+    renderSelection();
+    jobs.replaceChildren();
+    logEl.textContent = '';
+    logEl.classList.remove('show');
+    const root = `/max2glb_${Date.now().toString(36)}`;
+    const inputDir = `${root}/input`;
+    const persistentExposures = [];
+    pyodide.FS.mkdirTree(`${inputDir}/assets`);
+
+    try {
+      const conversionInputs = maxFiles.map((record, index) => ({
+        file: record.file,
+        name: record.file.name,
+        size: record.file.size,
+        path: null,
+        archiveIndex: null,
+        archiveName: null,
+        looseIndex: index,
+      }));
+      const sourceCandidates = [];
+
+      if (assets.length) {
+        setEngine('run', `Loading ${assets.length} texture asset${assets.length === 1 ? '' : 's'}…`);
+        for (let i = 0; i < assets.length; i++) {
+          const rec = assets[i];
+          const rel = safeRelativePath(rec.path, rec.file.name);
+          // Keep the original basename: MAX material records resolve textures by
+          // basename, while the numeric folder safely isolates duplicate paths.
+          const exposed = await exposeBrowserFile(
+            rec.file,
+            `${inputDir}/assets/mounted_${i}`,
+            `${inputDir}/assets/${i}/${rel}`,
+          );
+          persistentExposures.push(exposed);
+        }
+      }
+
+      // Stage loose source GLBs once. They can then serve several MAX inputs.
+      for (let i = 0; i < sources.length; i++) {
+        const record = sources[i];
+        setEngine('run', `Loading source GLB ${i + 1} of ${sources.length}…`);
+        const exposed = await exposeBrowserFile(
+          record.file,
+          `${inputDir}/assets/mounted_source_${i}`,
+          `${inputDir}/assets/source_${i}/${safeName(record.file.name)}`,
+        );
+        persistentExposures.push(exposed);
+        sourceCandidates.push({
+          file: record.file,
+          name: record.file.name,
+          size: record.file.size,
+          path: exposed.path,
+          archiveIndex: null,
+        });
+      }
+
+      // Extract every ZIP into a shared tree below inputDir. Each archive gets an
+      // isolated subfolder, while the MAX parser searches the common parent tree.
+      for (let i = 0; i < archives.length; i++) {
+        const archive = archives[i];
+        setEngine('run', `Unpacking ZIP ${i + 1} of ${archives.length}: ${archive.file.name}`);
+        try {
+          const inventory = await extractArchive(archive, i, root, inputDir);
+          for (const item of inventory.maxes) {
+            conversionInputs.push({
+              ...item,
+              file: null,
+              archiveName: archive.file.name,
+              looseIndex: null,
+            });
+          }
+          for (const item of inventory.sources) {
+            sourceCandidates.push({ ...item, file: null });
+          }
+          appendLog(`${archive.file.name}: ${inventory.maxes.length} MAX, ${inventory.textures} texture${inventory.textures === 1 ? '' : 's'}, ${inventory.sources.length} source GLB`);
+          if (inventory.skipped) appendLog(`${archive.file.name}: skipped ${inventory.skipped} unsupported or unsafe entr${inventory.skipped === 1 ? 'y' : 'ies'}`);
+        } catch (error) {
+          appendLog(`ZIP ERROR ${archive.file.name}: ${error.message || error}`);
+        }
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+
+      if (!conversionInputs.length) {
+        throw new Error('No .max files were found in the selected files or ZIP packages.');
+      }
+
+      const jobViews = conversionInputs.map(makeJob);
+
+      for (let i = 0; i < conversionInputs.length; i++) {
+        const rec = conversionInputs[i];
+        const job = jobViews[i];
+        const source = chooseSource(rec, sourceCandidates);
+        const maxName = `${i}_${safeName(rec.name)}`;
+        const duplicateNames = conversionInputs.filter(item => item.name.toLowerCase() === rec.name.toLowerCase()).length;
+        const prefix = rec.archiveName ? rec.archiveName.replace(/\.zip$/i, '') : `loose_${i + 1}`;
+        const outBase = rec.name.replace(/\.max$/i, '');
+        const outName = (duplicateNames > 1 ? `${safeName(prefix)}_${outBase}` : outBase) + '.glb';
+        let maxPath = rec.path;
+        const outPath = `${root}/${i}.glb`;
+        let maxExposure = null;
+
+        try {
+          updateJob(job, 'run', rec.file
+            ? `Loading ${formatBytes(rec.size)} into the converter…`
+            : `Extracted from ${rec.archiveName} · ${formatBytes(rec.size)}`);
+          setEngine('run', `Converting ${i + 1} of ${conversionInputs.length}: ${rec.name}`);
+          if (rec.file) {
+            maxExposure = await exposeBrowserFile(
+              rec.file,
+              `${inputDir}/mounted_max_${i}`,
+              `${inputDir}/${maxName}`,
+            );
+            maxPath = maxExposure.path;
+          }
+          updateJob(job, 'run', source ? 'Reading scene · using source GLB materials' : 'Reading scene data…');
+
+          const ok = await pyodide.runPythonAsync(`
+import importlib, max_to_glb
+importlib.reload(max_to_glb)
+ok = max_to_glb.convert_max_to_glb(
+    ${JSON.stringify(maxPath)},
+    ${JSON.stringify(outPath)},
+    source_glb=${source ? JSON.stringify(source.path) : 'None'},
+    extras=${$('#extras').checked ? 'True' : 'False'},
+    khr=${$('#khr').checked ? 'True' : 'False'},
+    double_sided=${$('#doubleSided').checked ? 'True' : 'False'},
+    asset_root=${JSON.stringify(inputDir)},
+    delete_input=True,
+)
+ok
+          `);
+
+          if (!ok) throw new Error('No exportable objects were found in this scene.');
+          const bytes = pyodide.FS.readFile(outPath);
+          const stats = inspectGlb(bytes);
+          const blob = new Blob([bytes], { type: 'model/gltf-binary' });
+          addDownload(job, blob, outName, stats);
+        } catch (error) {
+          updateJob(job, 'error', error && error.message ? error.message : String(error));
+          appendLog(`ERROR ${rec.name}: ${error && error.stack ? error.stack : error}`);
+        } finally {
+          if (maxExposure) releaseBrowserFile(maxExposure, true);
+          else if (maxPath) try { pyodide.FS.unlink(maxPath); } catch (_) {}
+          try { pyodide.FS.unlink(outPath); } catch (_) {}
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
+      }
+      setEngine('ready', `Finished ${conversionInputs.length} conversion${conversionInputs.length === 1 ? '' : 's'}.`);
+    } catch (error) {
+      setEngine('error', 'Conversion stopped. See the log for details.');
+      appendLog(error && error.stack ? error.stack : String(error));
+    } finally {
+      for (const exposure of persistentExposures.reverse()) releaseBrowserFile(exposure);
+      removeTree(root);
+      busy = false;
+      renderSelection();
+    }
+  }
+
+  async function boot() {
+    try {
+      pyodide = await loadPyodide({ indexURL: './vendor/' });
+      pyodide.setStdout({ batched: appendLog });
+      pyodide.setStderr({ batched: appendLog });
+      const embedded = $('#embedded-py').textContent;
+      let source = embedded.includes('__MAX_TO_GLB_PY__') ? '' : embedded;
+      if (!source.trim()) throw new Error('Embedded converter source is missing.');
+      pyodide.FS.writeFile('/home/pyodide/max_to_glb.py', source);
+      await pyodide.runPythonAsync("import sys; sys.path.insert(0, '/home/pyodide'); import max_to_glb");
+      ready = true;
+      setEngine('ready', 'Engine ready · files remain in this browser tab.');
+      renderSelection();
+    } catch (error) {
+      setEngine('error', `Engine failed to start: ${error && error.message ? error.message : error}`);
+      appendLog(error && error.stack ? error.stack : String(error));
+    }
+  }
+
+  filesInput.addEventListener('change', () => {
+    addRecords([...filesInput.files].map(file => ({ file, path: file.name })));
+    filesInput.value = '';
+  });
+
+  folderInput.addEventListener('change', () => {
+    addRecords([...folderInput.files].map(file => ({ file, path: file.webkitRelativePath || file.name })));
+    folderInput.value = '';
+  });
+
+  clearButton.addEventListener('click', () => {
+    if (busy) return;
+    records.clear();
+    renderSelection();
+  });
+
+  convertButton.addEventListener('click', convertAll);
+  $('#extras').addEventListener('change', renderSelection);
+  $('#khr').addEventListener('change', renderSelection);
+  $('#doubleSided').addEventListener('change', renderSelection);
+
+  window.addEventListener('dragenter', event => {
+    event.preventDefault();
+    dragDepth++;
+    document.body.classList.add('dragging');
+  });
+  window.addEventListener('dragover', event => {
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = busy ? 'none' : 'copy';
+  });
+  window.addEventListener('dragleave', event => {
+    event.preventDefault();
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (!dragDepth) document.body.classList.remove('dragging');
+  });
+  window.addEventListener('drop', async event => {
+    event.preventDefault();
+    dragDepth = 0;
+    document.body.classList.remove('dragging');
+    if (busy) return;
+    try { addRecords(await droppedRecords(event.dataTransfer)); }
+    catch (error) { appendLog(`Could not read dropped folder: ${error.message || error}`); }
+  });
+
+  window.addEventListener('beforeunload', () => objectUrls.forEach(URL.revokeObjectURL));
+  boot();
+})();
+</script>
+</body>
+</html>
