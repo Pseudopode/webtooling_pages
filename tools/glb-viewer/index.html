@@ -5847,7 +5847,7 @@ if (typeof exports === 'object' && typeof module === 'object') {
     };
     const state = {
       gltf: null, root: null, selected: null, selectionHelper: null, mixer: null, action: null,
-      archive: null, pendingArchiveFile: null, animations: [], source: null, wireframe: false, doubleSide: false, gaussianSplats: 0,
+      archive: null, pendingArchiveFile: null, animations: [], source: null, wireframe: false, doubleSide: false, gaussianSplats: 0, gaussianObjects: [],
       modelBox: new THREE.Box3(), modelCenter: new THREE.Vector3(), modelSize: new THREE.Vector3(),
       busy: false, pointerStart: {x:0,y:0}, frameCount: 0, fpsLast: performance.now(), lastTime: performance.now()
     };
@@ -5900,6 +5900,7 @@ if (typeof exports === 'object' && typeof module === 'object') {
     const camera = new THREE.PerspectiveCamera(42, 1, .01, 5000); camera.position.set(3, 2.2, 4);
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true; controls.dampingFactor = .075; controls.screenSpacePanning = true; controls.target.set(0,.5,0);
+    controls.addEventListener('end',()=>sortGaussianSplats());
     const pmrem = new THREE.PMREMGenerator(renderer);
     const room = new THREE.RoomEnvironment();
     scene.environment = pmrem.fromScene(room, .04).texture; room.dispose(); pmrem.dispose();
@@ -5939,7 +5940,7 @@ if (typeof exports === 'object' && typeof module === 'object') {
       if (state.mixer && state.root) state.mixer.uncacheRoot(state.root);
       if (state.root) { scene.remove(state.root); disposeObject(state.root); }
       if (state.selectionHelper) { scene.remove(state.selectionHelper); state.selectionHelper.geometry.dispose(); state.selectionHelper.material.dispose(); }
-      Object.assign(state,{gltf:null,root:null,selected:null,selectionHelper:null,mixer:null,action:null,animations:[],gaussianSplats:0});
+      Object.assign(state,{gltf:null,root:null,selected:null,selectionHelper:null,mixer:null,action:null,animations:[],gaussianSplats:0,gaussianObjects:[]});
       el.sceneTree.innerHTML = '<div class="empty-copy">Load a model to inspect and select its scene nodes.</div>';
       el.selectedInfo.innerHTML = '<div class="empty-copy">Click a mesh in the viewport or hierarchy.</div>';
     }
@@ -6098,8 +6099,8 @@ if (typeof exports === 'object' && typeof module === 'object') {
 
     function prepareGaussianSplats(gltf) {
       const used = (gltf.parser && gltf.parser.json && gltf.parser.json.extensionsUsed) || [];
-      let count = 0;
-      if (!gltf.scene) return {count: 0, extensionUsed: used.includes(GAUSSIAN_EXTENSION)};
+      let count = 0; const objects = [];
+      if (!gltf.scene) return {count: 0, objects, extensionUsed: used.includes(GAUSSIAN_EXTENSION)};
       gltf.scene.traverse(object => {
         if (!object.isPoints || !object.geometry || !object.geometry.getAttribute('position')) return;
         const geometry = object.geometry;
@@ -6114,9 +6115,39 @@ if (typeof exports === 'object' && typeof module === 'object') {
         object.material = createGaussianSplatMaterial(geometry);
         object.userData.gaussianSplat = true;
         object.renderOrder = 10;
-        count += geometry.getAttribute('position').count;
+        count += geometry.getAttribute('position').count; objects.push(object);
       });
-      return {count, extensionUsed: used.includes(GAUSSIAN_EXTENSION)};
+      return {count, objects, extensionUsed: used.includes(GAUSSIAN_EXTENSION)};
+    }
+
+    function sortGaussianSplats() {
+      if (!state.gaussianObjects.length) return;
+      const cameraPosition = camera.position;
+      const worldPosition = new THREE.Vector3();
+      state.gaussianObjects.forEach(object => {
+        const geometry = object.geometry;
+        const position = geometry && geometry.getAttribute('position');
+        if (!position || position.count < 2 || geometry.index) return;
+        const attributes = [...new Set(Object.values(geometry.attributes))];
+        if (attributes.some(attribute => !attribute || !attribute.array || attribute.isInterleavedBufferAttribute)) return;
+        object.updateMatrixWorld(true);
+        const distances = new Float32Array(position.count);
+        const order = new Array(position.count);
+        for (let i = 0; i < position.count; i++) {
+          worldPosition.fromBufferAttribute(position,i).applyMatrix4(object.matrixWorld);
+          distances[i] = worldPosition.distanceToSquared(cameraPosition);
+          order[i] = i;
+        }
+        order.sort((a,b)=>distances[b]-distances[a]);
+        attributes.forEach(attribute => {
+          const source = attribute.array.slice(0); const stride = attribute.itemSize;
+          for (let i = 0; i < order.length; i++) {
+            const from = order[i] * stride; const to = i * stride;
+            for (let j = 0; j < stride; j++) attribute.array[to+j] = source[from+j];
+          }
+          attribute.needsUpdate = true;
+        });
+      });
     }
 
     function validateGLB(buffer) {
@@ -6174,7 +6205,7 @@ if (typeof exports === 'object' && typeof module === 'object') {
     async function loadGLBBuffer(buffer, meta) {
       validateGLB(buffer); setBusy(true,'Building 3D scene',safeName(meta.name));
       const gltf=await parseGLB(buffer); clearModel(); state.gltf=gltf; state.root=gltf.scene || gltf.scenes[0];
-      if(!state.root)throw new Error('The GLB contains no scene.'); const gaussian=prepareGaussianSplats(gltf); state.gaussianSplats=gaussian.count; scene.add(state.root); state.animations=gltf.animations||[]; state.mixer=state.animations.length?new THREE.AnimationMixer(state.root):null;
+      if(!state.root)throw new Error('The GLB contains no scene.'); const gaussian=prepareGaussianSplats(gltf); state.gaussianSplats=gaussian.count; state.gaussianObjects=gaussian.objects; scene.add(state.root); state.animations=gltf.animations||[]; state.mixer=state.animations.length?new THREE.AnimationMixer(state.root):null;
       state.modelBox.setFromObject(state.root); if(state.modelBox.isEmpty())throw new Error('The GLB scene contains no visible geometry.');
       state.modelBox.getCenter(state.modelCenter); state.modelBox.getSize(state.modelSize); state.root.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
       ground.position.y=state.modelBox.min.y-.002*Math.max(state.modelSize.length(),1); grid.position.y=ground.position.y+.001;
@@ -6190,7 +6221,7 @@ if (typeof exports === 'object' && typeof module === 'object') {
       const distance=max/(2*Math.tan(fov/2))*1.45; let dir;
       if(direction==='front')dir=new THREE.Vector3(0,.12,1); else if(direction==='top')dir=new THREE.Vector3(0,1,.001); else dir=new THREE.Vector3(1,.65,1);
       dir.normalize(); camera.position.copy(center).addScaledVector(dir,distance); camera.near=Math.max(distance/1000,.001); camera.far=Math.max(distance*100,100); camera.updateProjectionMatrix();
-      controls.target.copy(center); controls.minDistance=max*.02; controls.maxDistance=max*50; controls.update();
+      controls.target.copy(center); controls.minDistance=max*.02; controls.maxDistance=max*50; controls.update(); sortGaussianSplats();
     }
     function selectObject(o, focus=false) {
       if(!o)return; state.selected=o; if(state.selectionHelper){scene.remove(state.selectionHelper);state.selectionHelper.geometry.dispose();state.selectionHelper.material.dispose();}
