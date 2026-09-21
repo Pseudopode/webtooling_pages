@@ -5903,7 +5903,7 @@ if (typeof exports === 'object' && typeof module === 'object') {
     controls.addEventListener('end',()=>sortGaussianSplats());
     const pmrem = new THREE.PMREMGenerator(renderer);
     const room = new THREE.RoomEnvironment();
-    scene.environment = pmrem.fromScene(room, .04).texture; room.dispose(); pmrem.dispose();
+    scene.environment = pmrem.fromScene(room, .04).texture; disposeObject(room); pmrem.dispose();
     const hemi = new THREE.HemisphereLight(0xffffff, 0xbec7d2, .76); scene.add(hemi);
     const key = new THREE.DirectionalLight(0xffffff, 2.5); key.position.set(4,7,5); key.castShadow = true;
     key.shadow.mapSize.set(2048,2048); key.shadow.bias = -.0002; key.shadow.normalBias = .02; scene.add(key);
@@ -6003,6 +6003,7 @@ if (typeof exports === 'object' && typeof module === 'object') {
       const uniforms = {
         uResolution: {value: new THREE.Vector2(1,1)},
         uSizeMultiplier: {value: 1.05},
+        uMaxPointSize: {value: renderer.getContext().getParameter(renderer.getContext().ALIASED_POINT_SIZE_RANGE)[1]},
         uHasColor: {value: hasColor ? 1 : 0}
       };
       const material = new THREE.ShaderMaterial({
@@ -6016,10 +6017,12 @@ if (typeof exports === 'object' && typeof module === 'object') {
           attribute vec4 splatColor;
           uniform vec2 uResolution;
           uniform float uSizeMultiplier;
+          uniform float uMaxPointSize;
           uniform float uHasColor;
           varying vec3 vColor;
           varying float vOpacity;
           varying vec3 vCovariance;
+          varying float vPointSize;
 
           mat3 quatToMat3(vec4 q) {
             float x2=q.x+q.x; float y2=q.y+q.y; float z2=q.z+q.z;
@@ -6061,7 +6064,8 @@ if (typeof exports === 'object' && typeof module === 'object') {
             vColor=mix(splatSH0*0.2820947917738781+vec3(0.5),splatColor.rgb,uHasColor);
             vOpacity=clamp(splatOpacity,0.0,1.0);
             gl_Position=projectionMatrix*viewPosition;
-            gl_PointSize=min(2048.0,max(1.0,2.0*radius*uSizeMultiplier));
+            vPointSize=min(uMaxPointSize,max(1.0,2.0*radius*uSizeMultiplier));
+            gl_PointSize=vPointSize;
           }
         `,
         fragmentShader: `
@@ -6069,9 +6073,11 @@ if (typeof exports === 'object' && typeof module === 'object') {
           varying vec3 vColor;
           varying float vOpacity;
           varying vec3 vCovariance;
+          varying float vPointSize;
 
           void main() {
-            vec2 delta=(gl_PointCoord-vec2(0.5))*gl_PointSize;
+            vec2 delta=(gl_PointCoord-vec2(0.5))*vPointSize;
+            delta.y=-delta.y;
             float determinant=max(vCovariance.x*vCovariance.z-vCovariance.y*vCovariance.y,0.000001);
             mat2 inverseCovariance=mat2(vCovariance.z,-vCovariance.y,-vCovariance.y,vCovariance.x)/determinant;
             float mahalanobis=dot(delta,inverseCovariance*delta);
@@ -6113,6 +6119,9 @@ if (typeof exports === 'object' && typeof module === 'object') {
         if (!rotation || !scale || !opacity || (!sh0 && !color)) return;
         if (object.material && object.material.dispose) object.material.dispose();
         object.material = createGaussianSplatMaterial(geometry);
+        object.onBeforeRender = renderer => {
+          object.material.uniforms.uResolution.value.set(renderer.domElement.width, renderer.domElement.height);
+        };
         object.userData.gaussianSplat = true;
         object.renderOrder = 10;
         count += geometry.getAttribute('position').count; objects.push(object);
