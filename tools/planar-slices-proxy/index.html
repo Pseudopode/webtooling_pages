@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Planar Sections Proxy Lab — autonomous GLB webpage + GLB export</title>
+<title>Planar Sections Proxy Lab — simplified</title>
 <style>
   :root{
     --bg:#11151b;
@@ -52,12 +52,19 @@
   .warning{color:#ffd166}
   .ok{color:#7ae582}
   a{color:#70d6ff}
+  canvas{touch-action:none}
+  :disabled{opacity:.45;cursor:default}
+  @media(max-width:760px){
+    body{overflow:auto} header .subtitle{display:none}
+    #app{height:auto;display:flex;flex-direction:column}
+    #stage{height:60vh;min-height:320px} #side{overflow:visible;border-left:0}
+  }
 </style>
 </head>
 <body>
 <header>
   <h1>Planar Sections Proxy Lab</h1>
-  <div class="subtitle">Standalone WebGL/GLB implementation of feature-populated plane-space, greedy selection, refinement, partial sections, and GLB export.</div>
+  <div class="subtitle">Load a GLB, select useful cross-sections, and export the proxy in source coordinates.</div>
 </header>
 <div id="app">
   <main id="stage">
@@ -80,16 +87,14 @@
     <div class="section">
       <h2>Display</h2>
       <select id="modeSelect" class="full">
-        <option value="figure7">Figure 7 feature plane-space</option>
-        <option value="pipeline">Paper pipeline steps</option>
         <option value="proxy">Planar proxy result</option>
         <option value="planespace">Plane-space only</option>
         <option value="features">Feature inspector</option>
       </select>
-      <div class="row"><label><input id="meshToggle" type="checkbox" checked /> mesh</label><label><input id="featureToggle" type="checkbox" checked /> features</label><label><input id="planeToggle" type="checkbox" checked /> planes</label></div>
-      <div class="row"><label><input id="contourToggle" type="checkbox" checked /> section contours</label><label><input id="cutToggle" type="checkbox" checked /> cut marks</label></div>
+      <div class="row"><label><input id="meshToggle" type="checkbox" checked /> mesh</label><label><input id="featureToggle" type="checkbox" /> features</label><label><input id="planeToggle" type="checkbox" /> planes</label></div>
+      <div class="row"><label><input id="contourToggle" type="checkbox" checked /> section contours</label><label><input id="fillToggle" type="checkbox" checked /> filled sections</label></div>
       <div class="row"><label><input id="spinToggle" type="checkbox" /> auto-spin</label></div>
-      <div class="small">Drag to orbit, scroll to zoom. Figure 7 mode shows plane-space and feature categories; Pipeline mode shows the paper-inspired processing stages.</div>
+      <div class="small">Drag to orbit, scroll to zoom. Feature and plane-space inspectors explain the selection.</div>
     </div>
     <div class="section">
       <h2>Selection parameters</h2>
@@ -99,28 +104,22 @@
       <input id="threshold" type="range" min="0.20" max="3.00" value="1.10" step="0.05" />
       <label>Feature influence radius: <span id="radiusText">0.18</span></label>
       <input id="radius" type="range" min="0.08" max="0.35" value="0.18" step="0.01" />
-      <label>Feature weights</label>
-      <select id="weightPreset" class="full">
-        <option value="paper">paper-inspired learned weights</option>
-        <option value="balanced">balanced weights</option>
-        <option value="curvature">curvature + symmetry emphasis</option>
-      </select>
     </div>
     <div class="section">
-      <h2>Paper algorithm steps</h2>
-      <div class="row"><label><input id="refineToggle" type="checkbox" checked /> plane refinement</label><label><input id="adaptiveToggle" type="checkbox" /> adaptive fill</label></div>
-      <div class="row"><label><input id="segmentCoverageToggle" type="checkbox" /> cover uncovered segments</label></div>
-      <div class="row"><label><input id="thinPartToggle" type="checkbox" checked /> preserve thin parts / struts</label></div>
+      <h2>Coverage</h2>
+      <div class="row"><label><input id="segmentCoverageToggle" type="checkbox" /> prioritize mesh primitives</label></div>
+      <div class="row"><label><input id="thinPartToggle" type="checkbox" checked /> prioritize detected thin parts</label></div>
       <div class="row"><label><input id="partialToggle" type="checkbox" /> partial sections by normal angle</label></div>
       <label>Partial-section angle: <span id="partialAngleText">70°</span></label>
       <input id="partialAngle" type="range" min="30" max="88" value="70" step="1" />
-      <div class="small">The optional refinements mirror the paper's selected-plane optimization and partial-section ideas: local plane refinement, segment coverage, adaptive thresholding, thin-part hard coverage for legs/struts, and retaining contour portions where the surface normal is nearly perpendicular to the slice plane.</div>
+      <div class="small">Coverage priorities share the maximum-plane budget. Thin-part detection is heuristic; uncovered detections are reported. Partial sections retain only contours passing the normal-angle filter and cannot be filled.</div>
     </div>
     <div class="section">
       <h2>Export</h2>
       <div class="row"><label><input id="exportContours" type="checkbox" checked /> contour tubes</label><label><input id="exportFilled" type="checkbox" checked /> filled sections</label></div>
-      <div class="row"><label><input id="exportPanels" type="checkbox" /> translucent planes</label><label><input id="exportCuts" type="checkbox" checked /> cut marks</label></div>
+      <div class="row"><label><input id="exportPanels" type="checkbox" /> translucent planes</label></div>
       <div class="row"><label><input id="exportOriginal" type="checkbox" /> include source mesh</label></div>
+      <div class="small">GLB and JSON preserve source scale and position. Fills preserve holes within each mesh primitive; open or ambiguous contours are left unfilled. Source textures and animation are not included.</div>
       <div class="split">
         <button id="exportGlbBtn" class="primary full">Export result GLB</button>
         <button id="exportBtn" class="full">Export JSON</button>
@@ -147,7 +146,6 @@ const EPS = 1e-7;
 const TAU = Math.PI * 2;
 const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
 const lerp = (a,b,t)=>a+(b-a)*t;
-const v3 = (x=0,y=0,z=0)=>[x,y,z];
 const add = (a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]];
 const sub = (a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];
 const mul = (a,s)=>[a[0]*s,a[1]*s,a[2]*s];
@@ -156,7 +154,6 @@ const cross = (a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0
 const len = a=>Math.hypot(a[0],a[1],a[2]);
 const norm = a=>{const l=len(a); return l<EPS?[0,1,0]:[a[0]/l,a[1]/l,a[2]/l];};
 const dist3 = (a,b)=>len(sub(a,b));
-const avg3 = pts=>{let c=[0,0,0]; for(const p of pts)c=add(c,p); return pts.length?mul(c,1/pts.length):c;};
 function vecToStr(v, n=3){return `[${v.map(x=>x.toFixed(n)).join(', ')}]`;}
 function planeToStr(p){return `n=${vecToStr(p.n,2)}, h=${p.h.toFixed(3)}`;}
 function safeAcos(x){return Math.acos(clamp(x,-1,1));}
@@ -207,10 +204,6 @@ function m4LookAt(eye, target, up){
 function m4TransformPoint(m,p){
   const x=p[0],y=p[1],z=p[2];
   return [m[0]*x+m[4]*y+m[8]*z+m[12], m[1]*x+m[5]*y+m[9]*z+m[13], m[2]*x+m[6]*y+m[10]*z+m[14]];
-}
-function m4TransformDir(m,p){
-  const x=p[0],y=p[1],z=p[2];
-  return norm([m[0]*x+m[4]*y+m[8]*z, m[1]*x+m[5]*y+m[9]*z, m[2]*x+m[6]*y+m[10]*z]);
 }
 function m4FromTRS(t=[0,0,0], q=[0,0,0,1], s=[1,1,1]){
   const x=q[0], y=q[1], z=q[2], w=q[3];
@@ -339,6 +332,7 @@ function drawFlatTriangles(positions, mvp, color){
   gl.useProgram(flatProg);
   gl.uniformMatrix4fv(gl.getUniformLocation(flatProg,'uMVP'),false,new Float32Array(mvp));
   gl.uniform4fv(gl.getUniformLocation(flatProg,'uColor'),new Float32Array(color));
+  gl.disableVertexAttribArray(1);
   gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0);
   gl.drawArrays(gl.TRIANGLES,0,positions.length/3);
   gl.deleteBuffer(b);
@@ -383,23 +377,28 @@ function finalizeBuilder(b, name='model'){
   for(const s of b.segments.values()) for(let i=0;i<s.points.length;i++) s.points[i]=mul(sub(s.points[i],center),scale);
   mn=[Infinity,Infinity,Infinity]; mx=[-Infinity,-Infinity,-Infinity];
   for(const p of allPts){ for(let k=0;k<3;k++){mn[k]=Math.min(mn[k],p[k]); mx[k]=Math.max(mx[k],p[k]);} }
-  const mesh={name, triangles:b.triangles, positions:new Float32Array(positions), normals:new Float32Array(normals), vertexCount:positions.length/3, points:allPts, segments:[...b.segments.values()], bbox:{min:mn,max:mx,center:mul(add(mn,mx),0.5),radius:len(sub(mx,mn))*0.5}, glPos:null, glNor:null};
+  const mesh={name, triangles:b.triangles, positions:new Float32Array(positions), normals:new Float32Array(normals), vertexCount:positions.length/3, points:allPts, segments:[...b.segments.values()], sourceTransform:{center,scale}, bbox:{min:mn,max:mx,center:mul(add(mn,mx),0.5),radius:len(sub(mx,mn))*0.5}, glPos:null, glNor:null};
   mesh.glPos=makeBuffer(mesh.positions); mesh.glNor=makeBuffer(mesh.normals);
   return mesh;
 }
 
 function parseGLB(arrayBuffer){
+  if(arrayBuffer.byteLength<20) throw new Error('Incomplete GLB header.');
   const dv = new DataView(arrayBuffer);
   if(dv.getUint32(0,true)!==0x46546C67) throw new Error('Not a binary glTF/GLB file.');
   const version=dv.getUint32(4,true); if(version!==2) throw new Error('Only GLB version 2 is supported.');
   let off=12, json=null, bin=null;
   while(off<arrayBuffer.byteLength){
+    if(off+8>arrayBuffer.byteLength) throw new Error('Incomplete GLB chunk.');
     const lenChunk=dv.getUint32(off,true); const type=dv.getUint32(off+4,true); off+=8;
+    if(off+lenChunk>arrayBuffer.byteLength) throw new Error('Incomplete GLB data.');
     const chunk=arrayBuffer.slice(off,off+lenChunk); off+=lenChunk;
     if(type===0x4E4F534A) json=JSON.parse(new TextDecoder('utf-8').decode(chunk));
     if(type===0x004E4942) bin=chunk;
   }
   if(!json || !bin) throw new Error('GLB must contain JSON and BIN chunks.');
+  if((json.extensionsRequired||[]).some(e=>!['KHR_mesh_quantization'].includes(e)))
+    throw new Error('This offline loader requires an uncompressed static triangle GLB without required extensions (except mesh quantization).');
   const bdv = new DataView(bin);
   const compInfo = {
     5120:{size:1,read:(o)=>bdv.getInt8(o)}, 5121:{size:1,read:(o)=>bdv.getUint8(o)},
@@ -408,10 +407,17 @@ function parseGLB(arrayBuffer){
   };
   const comps={SCALAR:1,VEC2:2,VEC3:3,VEC4:4,MAT2:4,MAT3:9,MAT4:16};
   function accessorReader(idx){
-    const a=json.accessors[idx]; const bv=json.bufferViews[a.bufferView]; const ci=compInfo[a.componentType];
-    if(!a || !bv || !ci) throw new Error('Unsupported accessor in GLB.');
+    const a=json.accessors?.[idx];
+    if(!a || a.sparse) throw new Error('Missing or sparse accessor; export a non-sparse GLB.');
+    const bv=json.bufferViews?.[a.bufferView]; const ci=compInfo[a.componentType];
+    if(!bv || !ci || (bv.buffer||0)!==0 || json.buffers?.[0]?.uri) throw new Error('Accessor requires an unsupported or external buffer.');
+    function read(o){
+      const v=ci.read(o);
+      if(!a.normalized || a.componentType===5126) return v;
+      return ({5120:()=>Math.max(-1,v/127),5121:()=>v/255,5122:()=>Math.max(-1,v/32767),5123:()=>v/65535,5125:()=>v/4294967295})[a.componentType]();
+    }
     const n=comps[a.type]; const stride=bv.byteStride || (ci.size*n); const base=(bv.byteOffset||0)+(a.byteOffset||0);
-    return {count:a.count, components:n, get(i){ const o=base+i*stride; if(n===1) return ci.read(o); const r=[]; for(let k=0;k<n;k++) r.push(ci.read(o+k*ci.size)); return r; }};
+    return {count:a.count, components:n, get(i){ const o=base+i*stride; if(n===1) return read(o); const r=[]; for(let k=0;k<n;k++) r.push(read(o+k*ci.size)); return r; }};
   }
   function nodeLocal(node){
     if(node.matrix) return node.matrix.slice();
@@ -420,8 +426,12 @@ function parseGLB(arrayBuffer){
   const b=createBuilder();
   function addMesh(meshIndex, mat, nodeName){
     const m=json.meshes[meshIndex];
+    const a=[mat[0],mat[1],mat[2]], c=[mat[4],mat[5],mat[6]], d=[mat[8],mat[9],mat[10]];
+    const cof=[cross(c,d),cross(d,a),cross(a,c)], determinant=dot(a,cof[0]);
+    if(Math.abs(determinant)<1e-12) throw new Error('A mesh has a singular transform.');
+    const transformNormal=n=>norm(mul(add(add(mul(cof[0],n[0]),mul(cof[1],n[1])),mul(cof[2],n[2])),1/determinant));
     (m.primitives||[]).forEach((pr,pi)=>{
-      if(pr.mode!==undefined && pr.mode!==4) return; // triangles only
+      if(pr.mode!==undefined && pr.mode!==4) throw new Error('Triangle primitives are required; convert strips, fans, points or lines before import.');
       const posR=accessorReader(pr.attributes.POSITION);
       const norR=pr.attributes.NORMAL!==undefined ? accessorReader(pr.attributes.NORMAL) : null;
       const idxR=pr.indices!==undefined ? accessorReader(pr.indices) : null;
@@ -430,20 +440,26 @@ function parseGLB(arrayBuffer){
       const triCount=(idxR?idxR.count:posR.count)/3;
       for(let t=0;t<triCount;t++){
         const ids=[getIndex(t*3),getIndex(t*3+1),getIndex(t*3+2)];
+        if(determinant<0) [ids[1],ids[2]]=[ids[2],ids[1]];
         const ps=ids.map(id=>m4TransformPoint(mat,posR.get(id)));
-        const ns=norR?ids.map(id=>m4TransformDir(mat,norR.get(id))):[null,null,null];
+        const ns=norR?ids.map(id=>transformNormal(norR.get(id))):[null,null,null];
         addTriangle(b,segName,ps[0],ps[1],ps[2],ns[0],ns[1],ns[2]);
       }
     });
   }
   function traverse(idx, parent){
-    const n=json.nodes[idx]; const local=nodeLocal(n); const world=m4Mul(parent,local);
-    if(n.mesh!==undefined) addMesh(n.mesh,world,n.name || `node ${idx}`);
+    const n=json.nodes[idx];
+    if(n.skin!==undefined) throw new Error('Bake the skinned pose to a static mesh before import.');
+    const local=nodeLocal(n); const world=m4Mul(parent,local);
+    if(n.mesh!==undefined) addMesh(n.mesh,world,`${n.name || 'node'} [${idx}]`);
     (n.children||[]).forEach(ch=>traverse(ch,world));
   }
   const scene=json.scenes?.[json.scene||0];
   if(scene && scene.nodes) scene.nodes.forEach(n=>traverse(n,m4Identity()));
-  else (json.nodes||[]).forEach((_,i)=>traverse(i,m4Identity()));
+  else {
+    const children=new Set((json.nodes||[]).flatMap(n=>n.children||[]));
+    (json.nodes||[]).forEach((_,i)=>{if(!children.has(i)) traverse(i,m4Identity());});
+  }
   return finalizeBuilder(b, json.asset?.generator ? `GLB (${json.asset.generator})` : 'GLB model');
 }
 
@@ -457,9 +473,9 @@ function addCylinderBetween(b, name, a, c, r, sides=14){
   }
   for(let i=0;i<sides;i++){
     const j=(i+1)%sides; const a0=verts[0][i], a1=verts[0][j], b0=verts[1][i], b1=verts[1][j];
-    addTriangle(b,name,a0.p,b0.p,b1.p,a0.n,b0.n,b1.n); addTriangle(b,name,a0.p,b1.p,a1.p,a0.n,b1.n,a1.n);
+    addTriangle(b,name,a0.p,b1.p,b0.p,a0.n,b1.n,b0.n); addTriangle(b,name,a0.p,a1.p,b1.p,a0.n,a1.n,b1.n);
   }
-  for(let i=1;i<sides-1;i++){ addTriangle(b,name,a,verts[0][i+1].p,verts[0][i].p,mul(axis,-1),mul(axis,-1),mul(axis,-1)); addTriangle(b,name,c,verts[1][i].p,verts[1][i+1].p,axis,axis,axis); }
+  for(let i=0;i<sides;i++){ const j=(i+1)%sides; addTriangle(b,name,a,verts[0][j].p,verts[0][i].p,mul(axis,-1),mul(axis,-1),mul(axis,-1)); addTriangle(b,name,c,verts[1][i].p,verts[1][j].p,axis,axis,axis); }
 }
 function addEllipsoid(b, name, center, radius, rows=9, cols=18){
   const grid=[];
@@ -475,7 +491,8 @@ function addEllipsoid(b, name, center, radius, rows=9, cols=18){
   }
   for(let y=0;y<rows;y++) for(let x=0;x<cols;x++){
     const a=grid[y][x], b0=grid[y][x+1], c=grid[y+1][x+1], d=grid[y+1][x];
-    addTriangle(b,name,a.p,b0.p,c.p,a.n,b0.n,c.n); addTriangle(b,name,a.p,c.p,d.p,a.n,c.n,d.n);
+    if(y>0) addTriangle(b,name,a.p,c.p,b0.p,a.n,c.n,b0.n);
+    if(y<rows-1) addTriangle(b,name,a.p,d.p,c.p,a.n,d.n,c.n);
   }
 }
 function createMannequinMesh(){
@@ -516,31 +533,16 @@ const COLORS = {
   segmentCoverage:[1.00,0.85,0.25],
   thinPart:[1.00,0.22,0.95],
   selected:[1.0,1.0,1.0],
-  contour:[0.02,0.02,0.02],
-  cutMark:[1.00,0.55,0.05]
+  contour:[0.02,0.02,0.02]
 };
 const TYPE_LABELS = {
   segmentPCAPlane:'segment PCA plane', segmentPCAAxis:'segment PCA axis', ridge:'ridge', valley:'valley', symmetryPlane:'symmetry plane', symmetryAxis:'symmetry axis', globalXYZ:'global XYZ', globalPCA:'global PCA', perpendicularSupport:'perpendicular support', symmetricSupport:'symmetric support', segmentCoverage:'segment coverage', thinPart:'thin part / strut'
 };
-const WEIGHT_PRESETS = {
-  paper:{
-    segmentPCAPlane:1.05, segmentPCAAxis:0.70, ridge:1.12, valley:0.88,
-    symmetryPlane:1.65, symmetryAxis:1.05, globalXYZ:0.76, globalPCA:0.88,
-    perpendicularSupport:0.70, symmetricSupport:0.68, segmentCoverage:0.92, thinPart:1.85
-  },
-  balanced:{
-    segmentPCAPlane:1.00, segmentPCAAxis:1.00, ridge:1.00, valley:1.00,
-    symmetryPlane:1.00, symmetryAxis:1.00, globalXYZ:1.00, globalPCA:1.00,
-    perpendicularSupport:0.85, symmetricSupport:0.85, segmentCoverage:1.00, thinPart:1.85
-  },
-  curvature:{
-    segmentPCAPlane:0.82, segmentPCAAxis:0.78, ridge:1.55, valley:1.35,
-    symmetryPlane:1.75, symmetryAxis:1.25, globalXYZ:0.55, globalPCA:0.72,
-    perpendicularSupport:0.85, symmetricSupport:0.85, segmentCoverage:0.90, thinPart:2.10
-  }
-};
-const BASE_WEIGHTS = {...WEIGHT_PRESETS.paper};
-function applyWeightPreset(name){ Object.assign(BASE_WEIGHTS, WEIGHT_PRESETS[name] || WEIGHT_PRESETS.paper); }
+const BASE_WEIGHTS = {
+  segmentPCAPlane:1.05, segmentPCAAxis:0.70, ridge:1.12, valley:0.88,
+  symmetryPlane:1.65, symmetryAxis:1.05, globalXYZ:0.76, globalPCA:0.88,
+  perpendicularSupport:0.70, symmetricSupport:0.68, segmentCoverage:0.92, thinPart:1.85
+}; // Fixed heuristic weights; no learned model.
 let featureIdCounter=1;
 function newFeature(o){
   o.id=featureIdCounter++; o.remaining=1; o.color=COLORS[o.type]||[1,1,1]; o.weight=BASE_WEIGHTS[o.type]||1; o.scalar=o.scalar??1; o.radius=o.radius??app.featureRadius; return o;
@@ -580,15 +582,14 @@ function extractFeatures(mesh){
     const p0=add(centroid,mul(axis,pr.min-dot(axis,centroid))); const p1=add(centroid,mul(axis,pr.max-dot(axis,centroid)));
     features.push(newFeature({type:'segmentPCAAxis', form:'spindle', axisPoint:centroid, axisDir:axis, endpoints:[p0,p1], segment:s.name, scalar:sizeScale*0.85, radius:app.featureRadius}));
   }
-  const thinParts=detectThinParts(mesh, syms, pca);
+  const thinParts=app.thinPartCoverage ? detectThinParts(mesh) : [];
   mesh.thinParts=thinParts;
   for(const tp of thinParts){
     features.push(newFeature({
       type:'thinPart', form:'spindle', axisPoint:tp.axisPoint, axisDir:tp.axisDir,
       endpoints:tp.endpoints, scalar:tp.scalar, radius:app.featureRadius*1.20,
       segment:tp.name, length:tp.length, width:tp.width, slenderness:tp.slenderness,
-      triangles:tp.triangles, hardCoverage:true, sourceKind:tp.sourceKind,
-      repeatedGroupSize:tp.repeatedGroupSize||1, synthetic:!!tp.synthetic
+      triangles:tp.triangles, sourceKind:tp.sourceKind
     }));
   }
   const edges=detectRidgeValley(mesh);
@@ -862,190 +863,18 @@ function detectParallelThinClusters(mesh, topo, seedParts=[]){
   }
   return out;
 }
-function reflectPointAcrossPlane(p,n,h){ return sub(p,mul(n,2*(dot(n,p)-h))); }
-function reflectDirAcrossPlane(d,n){ return norm(sub(d,mul(n,2*dot(n,d)))); }
-
-function makeSyntheticThinPart(mesh, topo, axisPoint, axisDir, length, width, name, sourceKind, faceIds=[]){
-  const tris=(faceIds||[]).map(fi=>topo.faces[fi]?.tri).filter(Boolean);
-  const pts=[]; const seen=new Set(); const q=1e4;
-  for(const tri of tris){
-    for(const p of tri.p){
-      const k=`${Math.round(p[0]*q)},${Math.round(p[1]*q)},${Math.round(p[2]*q)}`;
-      if(!seen.has(k)){ seen.add(k); pts.push(p); }
-    }
-  }
-  const endpoints=[add(axisPoint,mul(axisDir,-length*0.5)), add(axisPoint,mul(axisDir,length*0.5))];
-  const slenderness=length/Math.max(width,1e-5);
-  return {name, sourceKind, axisPoint, axisDir, endpoints, length, width, widthA:width, widthB:width, slenderness, sectionAspect:1, area:tris.length?componentArea(tris):0, normalAxis:0, triangles:tris, points:pts, score:length*Math.sqrt(Math.max(1,slenderness))*1.70, scalar:clamp(1.95+(slenderness-2.0)*0.22,1.90,3.25), synthetic:true, inferred:true};
-}
-function collectThinPartAroundAxis(mesh, topo, axisPoint, axisDir, length, width, name, sourceKind){
-  const diag=(mesh.bbox.radius||1)*2;
-  const completion = sourceKind==='symmetry-completion' || sourceKind==='parallelogram-completion' || sourceKind==='repeated-column';
-  const maxDist=Math.max(width*(completion?2.85:1.95), diag*(completion?0.035:0.024), completion?0.026:0.022);
-  const halfLen=Math.max(length*(completion?0.78:0.64), diag*(completion?0.060:0.050));
-  const ids=[];
-  for(let fi=0; fi<topo.faces.length; fi++){
-    const f=topo.faces[fi]; const c=faceCentroid(f); const rel=sub(c,axisPoint); const t=dot(rel,axisDir);
-    if(Math.abs(t)>halfLen) continue;
-    const radial=sub(rel,mul(axisDir,t));
-    if(len(radial)>maxDist) continue;
-    if(Math.abs(dot(f.n,axisDir))>0.88) continue;
-    ids.push(fi);
-  }
-  if(ids.length<6){
-    if(sourceKind==='parallelogram-completion' || sourceKind==='repeated-column') return makeSyntheticThinPart(mesh,topo,axisPoint,axisDir,length,width,name,sourceKind,ids);
-    return null;
-  }
-  const analyzed=analyzeThinComponent(mesh,topo,ids,name,sourceKind);
-  if(analyzed) return analyzed;
-  if(!completion || ids.length<6) return null;
-  const tris=ids.map(fi=>topo.faces[fi].tri);
-  const pts=[]; const seen=new Set(); const q=1e4;
-  for(const tri of tris){
-    for(const p of tri.p){
-      const k=`${Math.round(p[0]*q)},${Math.round(p[1]*q)},${Math.round(p[2]*q)}`;
-      if(!seen.has(k)){ seen.add(k); pts.push(p); }
-    }
-  }
-  const synthetic=makeSyntheticThinPart(mesh,topo,axisPoint,axisDir,length,width,name,sourceKind,ids);
-  synthetic.score*=0.86;
-  return synthetic;
-}
-function candidateThinCompletionMirrorPlanes(mesh, symPlanes=[], pca=null){
-  const out=[];
-  function add(n,h,quality=1){
-    n=norm(n); if(len(n)<0.5) return;
-    h = h!==undefined ? h : dot(n,mesh.bbox.center);
-    if(out.some(s=>Math.abs(dot(s.n,n))>0.965 && Math.abs(s.h-h)<0.060)) return;
-    out.push({n,h,quality,error:0});
-  }
-  (symPlanes||[]).forEach(s=>add(s.n,s.h,2.0));
-  [[1,0,0],[0,1,0],[0,0,1]].forEach(n=>add(n,dot(n,mesh.bbox.center),0.85));
-  if(pca && pca.vectors) pca.vectors.forEach(n=>add(n,dot(n,mesh.bbox.center),0.95));
-  return out;
-}
-function completeThinPartsBySymmetry(mesh, topo, parts, symPlanes=[], pca=null){
-  const out=[];
-  if(!parts.length) return out;
-  const mirrorPlanes=candidateThinCompletionMirrorPlanes(mesh,symPlanes,pca).slice(0,8);
-  if(!mirrorPlanes.length) return out;
-  for(const p of parts){
-    for(const s of mirrorPlanes){
-      const axisPoint=reflectPointAcrossPlane(p.axisPoint,s.n,s.h);
-      const axisDir=reflectDirAcrossPlane(p.axisDir,s.n);
-      const endpoints=p.endpoints.map(e=>reflectPointAcrossPlane(e,s.n,s.h));
-      const candidate={axisPoint,axisDir,endpoints,width:p.width,length:p.length};
-      const already=[...parts,...out].some(q=>{
-        const tol=Math.max(0.012, Math.min(0.038, Math.max(p.width||0.015,q.width||p.width||0.015)*0.62+0.012));
-        return Math.abs(dot(q.axisDir,axisDir))>0.92 && axisLineDistance(q,candidate)<tol && axisIntervalOverlap(q,candidate)>0.42;
-      });
-      if(already) continue;
-      const part=collectThinPartAroundAxis(mesh,topo,axisPoint,axisDir,p.length,p.width,`symmetry-completed strut from ${p.name}`,'symmetry-completion');
-      if(part){
-        part.axisDir=axisDir; part.axisPoint=axisPoint; part.endpoints=endpoints; part.length=p.length; part.width=Math.min(part.width,p.width*1.25); part.score=(part.score||1)*1.35*(s.quality||1); part.scalar=Math.max(part.scalar||1.4,p.scalar||1.4); part.repeatedGroupSize=Math.max(part.repeatedGroupSize||1,4);
-        out.push(part);
-      }
-    }
-  }
-  return out;
-}
-function medianNumber(values){ const a=values.slice().sort((x,y)=>x-y); return a.length?a[Math.floor(a.length/2)]:0; }
-function groupParallelSimilarThinParts(parts){
-  const groups=[]; const used=new Uint8Array(parts.length);
-  for(let i=0;i<parts.length;i++){
-    if(used[i]) continue;
-    const g=[parts[i]]; used[i]=1;
-    for(let j=i+1;j<parts.length;j++){
-      if(used[j]) continue;
-      const a=parts[i], b=parts[j];
-      const parallel=Math.abs(dot(a.axisDir,b.axisDir));
-      const lr=Math.max(a.length,b.length)/Math.max(1e-5,Math.min(a.length,b.length));
-      const wr=Math.max(a.width,b.width)/Math.max(1e-5,Math.min(a.width,b.width));
-      if(parallel>0.84 && lr<1.70 && wr<2.15){ used[j]=1; g.push(b); }
-    }
-    groups.push(g);
-  }
-  return groups;
-}
-function completeRepeatedRodSetsByParallelogram(mesh, topo, parts){
-  const out=[]; const groups=groupParallelSimilarThinParts(parts).filter(g=>g.length>=3 && g.length<=10);
-  const bbox=mesh.bbox, pad=(mesh.bbox.radius||1)*0.12;
-  const insideBox=p=>p[0]>=bbox.min[0]-pad && p[0]<=bbox.max[0]+pad && p[1]>=bbox.min[1]-pad && p[1]<=bbox.max[1]+pad && p[2]>=bbox.min[2]-pad && p[2]<=bbox.max[2]+pad;
-  for(const g of groups){
-    let axis=g[0].axisDir;
-    for(const p of g.slice(1)){ if(dot(axis,p.axisDir)<0) axis=sub(axis,p.axisDir); else axis=add(axis,p.axisDir); }
-    axis=norm(axis);
-    const length=medianNumber(g.map(p=>p.length||0.1));
-    const width=medianNumber(g.map(p=>p.width||0.04));
-    const endpointsTemplate=g[0].endpoints;
-    const all=()=>[...parts,...out];
-    const seenProposal=new Set(); let attempts=0;
-    for(let i=0;i<g.length;i++) for(let j=i+1;j<g.length;j++) for(let k=0;k<g.length;k++){
-      if(k===i || k===j) continue;
-      if(attempts>36) continue;
-      const q=add(sub(g[i].axisPoint,g[k].axisPoint),g[j].axisPoint);
-      if(!insideBox(q)) continue;
-      const key=`${Math.round(q[0]*80)}|${Math.round(q[1]*80)}|${Math.round(q[2]*80)}`;
-      if(seenProposal.has(key)) continue; seenProposal.add(key); attempts++;
-      const candidate={axisPoint:q,axisDir:axis,endpoints:[add(q,sub(endpointsTemplate[0],g[0].axisPoint)), add(q,sub(endpointsTemplate[1],g[0].axisPoint))],width,length};
-      const tooClose=all().some(p=>{
-        const tol=Math.max(0.012, Math.min(0.038, Math.max(width,p.width||width)*0.62+0.012));
-        return Math.abs(dot(p.axisDir,axis))>0.92 && axisLineDistance(p,candidate)<tol && axisIntervalOverlap(p,candidate)>0.42;
-      });
-      if(tooClose) continue;
-      let part=collectThinPartAroundAxis(mesh,topo,q,axis,length,width,`parallelogram-completed strut ${out.length+1}`,'parallelogram-completion');
-      if(!part && g.length===3) part=makeSyntheticThinPart(mesh,topo,q,axis,length,width,`inferred fourth strut ${out.length+1}`,'parallelogram-completion',[]);
-      if(part){
-        part.axisDir=axis; part.axisPoint=q; part.endpoints=candidate.endpoints; part.length=length; part.width=Math.min(part.width,width*1.30); part.score=(part.score||1)*1.65; part.scalar=Math.max(part.scalar||1.4,2.05); part.repeatedGroupSize=Math.max(part.repeatedGroupSize||1,4);
-        out.push(part);
-        if(g.length===3) attempts=99;
-      }
-    }
-  }
-  return out;
-}
-function markRepeatedThinGroups(parts){
-  for(const p of parts) p.repeatedGroupSize=1;
-  for(let i=0;i<parts.length;i++){
-    let count=1;
-    for(let j=0;j<parts.length;j++){
-      if(i===j) continue;
-      const a=parts[i], b=parts[j];
-      const parallel=Math.abs(dot(a.axisDir,b.axisDir));
-      const lr=Math.max(a.length,b.length)/Math.max(1e-5,Math.min(a.length,b.length));
-      const wr=Math.max(a.width,b.width)/Math.max(1e-5,Math.min(a.width,b.width));
-      if(parallel>0.84 && lr<1.70 && wr<2.15) count++;
-    }
-    parts[i].repeatedGroupSize=count;
-  }
-  return parts;
-}
-function detectThinParts(mesh, symPlanes=[], pca=null){
+function detectThinParts(mesh){
   const topo=buildTriangleTopology(mesh);
-  let parts=[];
-  const connected=triangleComponentsByVertices(topo,6);
-  connected.forEach((comp,i)=>{
-    const part=analyzeThinComponent(mesh,topo,comp,`thin component ${i+1}`,'connected');
+  const parts=[];
+  for(const [kind, components] of [
+    ['connected',triangleComponentsByVertices(topo,6)],
+    ['smooth',triangleComponentsBySmoothEdges(topo,0.92,8)]
+  ]) components.forEach((comp,i)=>{
+    const part=analyzeThinComponent(mesh,topo,comp,`${kind} thin part ${i+1}`,kind);
     if(part) parts.push(part);
   });
-  const smooth=triangleComponentsBySmoothEdges(topo,0.92,8);
-  smooth.forEach((comp,i)=>{
-    const part=analyzeThinComponent(mesh,topo,comp,`thin patch ${i+1}`,'smooth');
-    if(part) parts.push(part);
-  });
-  const rawCount=parts.length;
-  const parallelClusters=detectParallelThinClusters(mesh,topo,parts);
-  parts.push(...parallelClusters);
-  parts=dedupeThinParts(parts);
-  const symCompleted=completeThinPartsBySymmetry(mesh,topo,parts,symPlanes,pca);
-  parts.push(...symCompleted);
-  parts=dedupeThinParts(parts);
-  const paraCompleted=completeRepeatedRodSetsByParallelogram(mesh,topo,parts);
-  parts.push(...paraCompleted);
-  parts=dedupeThinParts(parts);
-  parts=markRepeatedThinGroups(parts);
-  mesh.thinPartStats={raw:rawCount, parallelClusters:parallelClusters.length, symmetryCompleted:symCompleted.length, parallelogramCompleted:paraCompleted.length, kept:parts.length};
-  return parts;
+  parts.push(...detectParallelThinClusters(mesh,topo,parts));
+  return dedupeThinParts(parts);
 }
 function sampleAxisPlanes(f, count=24, selectedRefs=[]){
   const a=f.axisDir; const [u,v]=planeBasis(a); const out=[];
@@ -1066,90 +895,36 @@ function contourLengthForTriangles(tris, plane){
   for(const tri of tris){ const cut=trianglePlaneSegment(tri.p,plane); if(cut) total+=dist3(cut[0],cut[1]); }
   return total;
 }
-function thinOwnCoverageLength(f, plane){
-  const cov=coveragePlaneFeature(plane,f);
-  const own=contourLengthForTriangles(f.triangles||[],plane);
-  const inferred=!!f.synthetic || !!f.inferred || (f.sourceKind||'').includes('completion');
-  const lineEstimate=(f.length||0.1)*cov*(inferred?1.05:0.62);
-  return Math.max(own,lineEstimate);
-}
 function thinFeatureCoveredByPlane(f, plane){
-  const cov=coveragePlaneFeature(plane,f);
-  const isRepeated=(f.repeatedGroupSize||1)>=3 || !!f.synthetic || f.sourceKind==='symmetry-completion' || f.sourceKind==='parallelogram-completion' || f.sourceKind==='repeated-column';
-  if(cov<(isRepeated?0.34:0.40)) return false;
-  const own=thinOwnCoverageLength(f,plane);
-  return own > Math.max(isRepeated?0.014:0.018, (f.length||0.1)*(isRepeated?0.17:0.25));
-}
-function thinFeatureCoveredBySelected(f, selected){
-  return selected.some(p=>thinFeatureCoveredByPlane(f,p));
-}
-function thinCoveragePriority(f){
-  const repeat=f.repeatedGroupSize||1;
-  const sourceBoost = f.sourceKind==='parallelogram-completion' ? 64 : (f.sourceKind==='repeated-column' ? 54 : (f.sourceKind==='symmetry-completion' ? 46 : (f.sourceKind==='parallel-cluster' ? 24 : 0)));
-  const repeatBoost = repeat>=4 ? 80 : (repeat===3 ? 58 : (repeat===2 ? 18 : 0));
-  const slenderBoost = clamp((f.slenderness||1)-2.5,0,8)*4.0;
-  const smallWidthBoost = clamp(0.10/Math.max(0.012,f.width||0.05),0,8);
-  return repeatBoost + sourceBoost + slenderBoost + smallWidthBoost + (f.scalar||1)*3;
+  return coveragePlaneFeature(plane,f)>=0.40 &&
+    contourLengthForTriangles(f.triangles,plane)>Math.max(0.018,f.length*0.25);
 }
 function addThinPartCoveragePlanes(mesh, features, selected, trace){
   if(!app.thinPartCoverage) return;
-  const thin=features.filter(f=>f.type==='thinPart' && f.hardCoverage);
-  if(!thin.length) return;
-  thin.sort((a,b)=>thinCoveragePriority(b)-thinCoveragePriority(a));
-  const repeatedCount=thin.filter(f=>(f.repeatedGroupSize||1)>=3 || f.synthetic || f.sourceKind==='symmetry-completion' || f.sourceKind==='parallelogram-completion').length;
-  let added=0;
-  const cap=Math.min(72, Math.max(app.maxPlanes, selected.length) + (app.thinExtraPlanes||14) + Math.min(22,repeatedCount+Math.ceil(thin.length*0.35)));
+  const thin=features.filter(f=>f.type==='thinPart').sort((a,b)=>b.length-a.length);
   for(const f of thin){
-    const isRepeated=(f.repeatedGroupSize||1)>=3 || f.synthetic || f.sourceKind==='symmetry-completion' || f.sourceKind==='parallelogram-completion' || f.sourceKind==='repeated-column';
-    if(selected.length>=cap && !isRepeated) break;
-    if(selected.length>=72) break;
-    if(thinFeatureCoveredBySelected(f,selected)) continue;
-    let best=null, bestScore=-Infinity, bestOwn=0;
-    const cands=sampleAxisPlanes(f,isRepeated?56:40,selected);
-    for(const g of thin){
-      if(g===f) continue;
-      if(Math.abs(dot(f.axisDir,g.axisDir))>0.88){
-        const d=sub(g.axisPoint,f.axisPoint);
-        const n=norm(cross(f.axisDir,d));
-        if(len(n)>0.20) cands.push(makePlane(n,dot(n,f.axisPoint),f.id));
-      }
+    if(selected.length>=app.maxPlanes) break;
+    if(selected.some(p=>thinFeatureCoveredByPlane(f,p))) continue;
+    const candidates=sampleAxisPlanes(f,24,selected);
+    for(const other of thin){
+      if(other===f || Math.abs(dot(f.axisDir,other.axisDir))<0.88) continue;
+      const n=cross(f.axisDir,sub(other.axisPoint,f.axisPoint));
+      if(len(n)>EPS){const nn=norm(n); candidates.push(makePlane(nn,dot(nn,f.axisPoint),f.id));}
     }
-    const unique=[];
-    for(const c of cands){ if(!tooSimilarPlane(c,selected,0.012) && !tooSimilarPlane(c,unique,0.020)) unique.push(c); }
-    if(unique.length<8){ for(const c of cands){ if(!tooSimilarPlane(c,unique,0.020)) unique.push(c); } }
-    for(const cand of unique){
-      const own=thinOwnCoverageLength(f,cand);
-      if(own < Math.max(0.010,(f.length||0.1)*(isRepeated?0.07:0.12))) continue;
-      let otherThin=0, repeatedThin=0;
-      for(const g of thin){
-        if(g===f) continue;
-        const c=coveragePlaneFeature(cand,g);
-        if(c>0.30){
-          const val=c*(g.length||0.1);
-          otherThin += val;
-          if((g.repeatedGroupSize||1)>=3 || g.synthetic || (g.sourceKind||'').includes('completion')) repeatedThin += val;
-        }
-      }
-      const s=own*3.4 + otherThin*1.15 + repeatedThin*1.45 + scoreCandidate(cand,features)*0.08 + thinCoveragePriority(f)*0.05;
-      if(s>bestScore){ best=cand; bestScore=s; bestOwn=own; }
+    let best=null, bestScore=-Infinity;
+    for(const p of candidates){
+      if(tooSimilarPlane(p,selected,0.02) || !thinFeatureCoveredByPlane(f,p)) continue;
+      const gain=thin.reduce((sum,g)=>sum+(!selected.some(q=>thinFeatureCoveredByPlane(g,q)) && thinFeatureCoveredByPlane(g,p)?g.length:0),0);
+      if(gain>bestScore){best=p; bestScore=gain;}
     }
-    if(best && bestOwn>Math.max(0.012,(f.length||0.1)*(isRepeated?0.10:0.19))){
-      best.contourLength=contourLengthForPlane(best,mesh);
-      best.score=bestScore;
-      best.reason=isRepeated?'repeated thin-strut hard coverage':'thin-part hard coverage';
-      best.segment=f.segment || f.sourceKind || 'thin part';
-      best.index=selected.length+1;
+    if(best){
+      best.score=bestScore; best.reason='detected thin-part coverage';
+      best.contourLength=contourLengthForPlane(best,mesh); best.index=selected.length+1;
       selected.push(best);
-      f.remaining=0.02;
-      added++;
-      trace.push({index:best.index, score:best.score, reason:best.reason, segment:best.segment, contourLength:best.contourLength||0, source:f.id, covered:[['thin part / strut',bestOwn],['repeated group size',f.repeatedGroupSize||1]]});
+      trace.push({index:best.index,reason:best.reason,score:best.score,contourLength:best.contourLength});
     }
   }
-  let missed=0;
-  for(const f of thin) if(!thinFeatureCoveredBySelected(f,selected)) missed++;
-  app.thinCoverageSummary={detected:thin.length, repeated:repeatedCount, added, missed, stats:mesh.thinPartStats||{}};
 }
-
 
 function normalAligned(plane, nref){
   const d=dot(plane.n,nref);
@@ -1235,8 +1010,7 @@ function addSegmentCoveragePlanes(mesh, selected, trace, cap=app.maxPlanes){
       }
     }
     if(best && bestLen>0.045){
-      if(app.planeRefinement) best=refinePlaneByContour(best, mesh);
-      else best.contourLength=contourLengthForPlane(best, mesh);
+      best.contourLength=contourLengthForPlane(best, mesh);
       best.score=bestLen;
       best.reason='segment coverage';
       best.segment=seg.name;
@@ -1249,19 +1023,21 @@ function addSegmentCoveragePlanes(mesh, selected, trace, cap=app.maxPlanes){
 function selectPlanes(mesh, features){
   for(const f of features){ f.remaining=1; f.supportMade=false; }
   const selected=[]; const dynamic=[]; const trace=[]; const maxPlanes=app.maxPlanes, threshold=app.threshold;
-  const minAdaptive = app.adaptiveFill ? Math.max(0.18, threshold*0.45) : threshold;
-  for(let iter=0; iter<maxPlanes; iter++){
+  addThinPartCoveragePlanes(mesh,features,selected,trace);
+  if(app.segmentCoverage) addSegmentCoveragePlanes(mesh,selected,trace,maxPlanes);
+  for(const p of selected) for(const f of features) f.remaining*=1-coveragePlaneFeature(p,f)*0.92;
+  for(let iter=selected.length; iter<maxPlanes; iter++){
     const all=[...features,...dynamic]; const cands=generateCandidates(all).filter(c=>!tooSimilarPlane(c,selected,0.065));
-    let best=null, bestScore=-Infinity;
-    for(const c of cands){ c.score=scoreCandidate(c, all); if(c.score>bestScore){best=c; bestScore=c.score;} }
-    if(!best || bestScore<minAdaptive) break;
-    if(!app.adaptiveFill && bestScore<threshold) break;
-    const before=best;
-    const sourceFeature = all.find(f=>f.id===before.source);
-    const lockAxis = sourceFeature && sourceFeature.type==='thinPart';
-    best=(app.planeRefinement && !lockAxis) ? refinePlaneByContour(best, mesh) : best;
-    if(!app.planeRefinement || lockAxis) best.contourLength=contourLengthForPlane(best,mesh);
-    best.score=bestScore; best.index=selected.length+1; best.reason=bestScore>=threshold?'feature coverage':'adaptive threshold'; selected.push(best);
+    for(const c of cands) c.score=scoreCandidate(c,all);
+    cands.sort((a,b)=>b.score-a.score);
+    let best=null;
+    for(const c of cands){
+      if(c.score<threshold) break;
+      c.contourLength=contourLengthForPlane(c,mesh);
+      if(c.contourLength>1e-5){best=c; break;}
+    }
+    if(!best) break;
+    best.index=selected.length+1; best.reason='feature coverage'; selected.push(best);
     const coveredTypes=new Map();
     for(const f of all){
       if(f.remaining<0.04) continue;
@@ -1279,11 +1055,10 @@ function selectPlanes(mesh, features){
     if(sym && iter<maxPlanes-1){
       const rp=reflectPlaneAcrossPlane(best, sym); if(rp && !tooSimilarPlane(rp,[...selected,...generateCandidates(dynamic)],0.08)) dynamic.push(newFeature({type:'symmetricSupport',form:'point',n:rp.n,h:rp.h,scalar:0.72,radius:app.featureRadius*0.9,parent:sym.id}));
     }
-    trace.push({index:best.index, score:best.score, reason:best.reason, contourLength:best.contourLength||0, source:before.source, covered:[...coveredTypes.entries()].sort((a,b)=>b[1]-a[1]).slice(0,4)});
+    trace.push({index:best.index, score:best.score, reason:best.reason, contourLength:best.contourLength||0, source:best.source, covered:[...coveredTypes.entries()].sort((a,b)=>b[1]-a[1]).slice(0,4)});
   }
-  addThinPartCoveragePlanes(mesh, features, selected, trace);
-  const coverageCap = app.thinPartCoverage ? Math.min(36, maxPlanes+(app.thinExtraPlanes||14)) : maxPlanes;
-  if(app.segmentCoverage && selected.length<coverageCap) addSegmentCoveragePlanes(mesh, selected, trace, coverageCap);
+  const thin=features.filter(f=>f.type==='thinPart');
+  app.thinCoverageSummary={detected:thin.length,missed:thin.filter(f=>!selected.some(p=>thinFeatureCoveredByPlane(f,p))).length};
   app.dynamicFeatures=dynamic;
   app.pipelineTrace=trace;
   return selected;
@@ -1301,14 +1076,6 @@ function contourLengthForPlane(plane, mesh){
     const seg=trianglePlaneSegment(tri.p, plane); if(seg) total+=dist3(seg[0],seg[1]);
   }
   return total;
-}
-function refinePlaneByContour(plane, mesh){
-  let best=plane, bestL=contourLengthForPlane(plane,mesh); const step=0.018;
-  for(let i=-4;i<=4;i++){
-    const p=makePlane(plane.n, plane.h+i*step, plane.source); const l=contourLengthForPlane(p,mesh);
-    if(l>bestL){best=p; bestL=l;}
-  }
-  best.contourLength=bestL; return best;
 }
 function trianglePlaneSegment(ps, plane){
   const ds=ps.map(p=>dot(plane.n,p)-plane.h); const pts=[];
@@ -1343,22 +1110,6 @@ function computeContours(mesh, planes, opts={}){
   return out;
 }
 
-function computePlaneCutLines(planes, radius=1){
-  const out=[];
-  for(let i=0;i<planes.length;i++) for(let j=i+1;j<planes.length;j++){
-    const p=planes[i], q=planes[j];
-    const d=cross(p.n,q.n); const d2=dot(d,d);
-    if(d2<1e-5) continue;
-    const dir=norm(d);
-    const denom=dot(p.n,cross(q.n,dir));
-    if(Math.abs(denom)<1e-6) continue;
-    const point=mul(add(mul(cross(q.n,dir),p.h), mul(cross(dir,p.n),q.h)), 1/denom);
-    if(!isFinite(point[0]+point[1]+point[2])) continue;
-    const span=radius*1.15;
-    out.push({a:add(point,mul(dir,-span)),b:add(point,mul(dir,span)),pair:[i,j]});
-  }
-  return out;
-}
 
 /* -------------------------------------------------------------------------
    Visualization data.
@@ -1400,23 +1151,22 @@ function buildPlaneSpaceData(features){
   return {lines,points};
 }
 function buildSelectedPlaneData(planes){
-  const lines=[], fills=[], contours=[], cuts=[]; const size=app.mesh?.bbox.radius*1.05 || 1;
-  planes.forEach((p,i)=>{ const c=[1,1,1]; addRectLines(lines,p,size,c); addRectFill(fills,p,size); });
-  for(const s of app.contours){ addLine(contours,s.a,s.b,[0.02,0.02,0.02]); }
-  for(const s of (app.cutLines||[])){ addLine(cuts,s.a,s.b,COLORS.cutMark); }
-  return {lines,fills,contours,cuts};
+  const lines=[], fills=[], contours=[]; const size=app.mesh?.bbox.radius*1.05 || 1;
+  planes.forEach(p=>{addRectLines(lines,p,size,[1,1,1]); addRectFill(fills,p,size);});
+  for(const s of app.contours) addLine(contours,s.a,s.b,[0.02,0.02,0.02]);
+  return {lines,fills,contours};
 }
 
 /* -------------------------------------------------------------------------
    App state, UI, rendering.
 ---------------------------------------------------------------------------*/
 const app = {
-  mesh:null, features:[], dynamicFeatures:[], selectedPlanes:[], contours:[], cutLines:[], pipelineTrace:[], thinCoverageSummary:null,
-  mode:'figure7', maxPlanes:8, threshold:1.10, featureRadius:0.18, partialAngle:70,
-  planeRefinement:true, adaptiveFill:false, segmentCoverage:false, thinPartCoverage:true, thinExtraPlanes:14, partialSections:false,
-  exportContours:true, exportFilled:true, exportPanels:false, exportCuts:true, exportOriginal:false,
+  mesh:null, features:[], dynamicFeatures:[], selectedPlanes:[], contours:[], pipelineTrace:[], thinCoverageSummary:null, fillGeometry:null, sectionData:null, fillSkipped:0,
+  mode:'proxy', maxPlanes:8, threshold:1.10, featureRadius:0.18, partialAngle:70,
+  segmentCoverage:false, thinPartCoverage:true, partialSections:false,
+  exportContours:true, exportFilled:true, exportPanels:false, exportOriginal:false,
   camera:{theta:0.75, phi:0.25, dist:3.0, target:[0,0,0]},
-  spin:false, showMesh:true, showFeatures:true, showPlanes:true, showContours:true, showCuts:true,
+  spin:false, showMesh:true, showFeatures:false, showPlanes:false, showContours:true, showFilled:true,
   dirty:true, lastT:0
 };
 
@@ -1433,35 +1183,33 @@ function updatePlaneList(){
   const title=document.createElement('div'); title.className='small'; title.innerHTML=`<b>${app.selectedPlanes.length}</b> selected planar sections`; planeList.appendChild(title);
   app.selectedPlanes.forEach((p,i)=>{
     const d=document.createElement('div'); d.className='plane-card';
-    d.innerHTML=`<b>#${i+1}</b> ${p.reason||'selected'}<br>score ${p.score?.toFixed(2) ?? '–'} · contour ${(p.contourLength||0).toFixed(2)}<br>${planeToStr(p)}${p.segment?'<br><span class="warning">segment: '+p.segment+'</span>':''}`;
+    d.style.whiteSpace='pre-wrap'; d.textContent=`#${i+1} ${p.reason||'selected'}\nscore ${p.score?.toFixed(2) ?? '–'} · normalized contour length ${(p.contourLength||0).toFixed(2)}\n${planeToStr(p)}${p.segment?'\nprimitive: '+p.segment:''}`;
     planeList.appendChild(d);
   });
 }
 function analyzeCurrent(){
   if(!app.mesh) return;
   const t0=performance.now();
-  app.thinCoverageSummary=null;
   app.features=extractFeatures(app.mesh);
-  app.dynamicFeatures=[]; app.pipelineTrace=[];
   app.selectedPlanes=selectPlanes(app.mesh,app.features);
-  app.contours=computeContours(app.mesh,app.selectedPlanes,{partial:app.partialSections,angleDeg:app.partialAngle});
-  app.cutLines=computePlaneCutLines(app.selectedPlanes,app.mesh.bbox.radius||1);
-  const t1=performance.now();
-  const all=[...app.features,...(app.dynamicFeatures||[])];
-  const counts={}; for(const f of all) counts[f.type]=(counts[f.type]||0)+1;
-  const countText=Object.entries(counts).map(([k,v])=>`${TYPE_LABELS[k]||k}: ${v}`).join('\n');
-  const thinSources={};
-  for(const f of app.features){ if(f.type==='thinPart') thinSources[f.sourceKind||'detected']=(thinSources[f.sourceKind||'detected']||0)+1; }
-  const thinSourceText=Object.entries(thinSources).map(([k,v])=>`${k}: ${v}`).join('\n');
-  const traceText=(app.pipelineTrace||[]).slice(0,14).map(t=>`#${t.index} ${t.reason}: score ${Number(t.score||0).toFixed(2)}${t.segment?' / '+t.segment:''}`).join('\n');
-  const enabled=[]; if(app.planeRefinement) enabled.push('plane refinement'); if(app.adaptiveFill) enabled.push('adaptive threshold'); if(app.segmentCoverage) enabled.push('segment coverage'); if(app.thinPartCoverage) enabled.push('thin-part/repeated-strut hard coverage'); if(app.partialSections) enabled.push(`partial sections ≥ ${app.partialAngle}°`);
-  const ts=app.thinCoverageSummary || {detected:0,repeated:0,added:0,missed:0,stats:app.mesh.thinPartStats||{}};
-  const thinAudit=app.thinPartCoverage ? `\nThin-part audit: ${ts.detected||0} strut features, ${ts.repeated||0} repeated-family features, ${ts.added||0} hard-coverage planes added, ${ts.missed||0} still uncovered. Parallel clusters=${ts.stats?.parallelClusters||0}, symmetry completed=${ts.stats?.symmetryCompleted||0}, parallelogram completed=${ts.stats?.parallelogramCompleted||0}.` : '';
-  const thinSourceBlock = thinSourceText ? `\n\nThin-part sources:\n${thinSourceText}` : '';
-  log(`${app.mesh.name}\ntriangles: ${app.mesh.triangles.length}\nsegments: ${app.mesh.segments.length}\nfeatures: ${app.features.length} + ${app.dynamicFeatures?.length||0} supports\nselected planes: ${app.selectedPlanes.length}\ncontour segments: ${app.contours.length}\ninterlocking cut marks: ${app.cutLines?.length||0}\nanalysis time: ${(t1-t0).toFixed(0)} ms${thinAudit}\n\n${countText}${thinSourceBlock}\n\nPipeline steps enabled: ${enabled.join(', ') || 'base greedy coverage'}\n${traceText ? '\nSelection trace:\n'+traceText : ''}\n\nNote: ridge/valley and symmetry detectors are browser-side heuristics; the plane-space forms, greedy covering, support features, and optional optimizations follow the paper-inspired implementation pattern.`);
-  updatePlaneList(); app.dirty=true; render();
+  app.analysisMs=performance.now()-t0;
+  updateSections();
+  updatePlaneList();
 }
-function setMesh(mesh){ app.mesh=mesh; app.camera={theta:0.75,phi:0.25,dist:3.0,target:[0,0,0]}; analyzeCurrent(); }
+function setMesh(mesh){
+  if(app.mesh){gl.deleteBuffer(app.mesh.glPos); gl.deleteBuffer(app.mesh.glNor);}
+  app.mesh=mesh; app.camera={theta:0.75,phi:0.25,dist:3.0,target:[0,0,0]}; analyzeCurrent();
+}
+function updateSections(){
+  app.contours=computeContours(app.mesh,app.selectedPlanes);
+  app.fillGeometry=makeGeomGroup('filled planar sections',{name:'filled planar sections',color:[0.92,0.94,0.96,1],doubleSided:true});
+  app.fillSkipped=app.partialSections?0:addFilledSections(app.fillGeometry,app.contours,app.selectedPlanes);
+  app.sectionData=buildSelectedPlaneData(app.selectedPlanes);
+  for(const id of ['exportFilled','fillToggle','partialAngle']) document.getElementById(id).disabled=id==='partialAngle'?!app.partialSections:app.partialSections;
+  const thin=app.thinCoverageSummary;
+  log(`${app.mesh.name}\n${app.mesh.triangles.length} triangles · ${app.mesh.segments.length} primitives\n${app.selectedPlanes.length} / ${app.maxPlanes} planes · ${app.contours.length} contour segments\nSelection: ${app.analysisMs.toFixed(0)} ms\n${thin.detected} detected thin parts; ${thin.missed} uncovered within budget.\n${app.partialSections?'Partial contours: fills disabled.':`${app.fillGeometry.indices.length/3} fill triangles; ${app.fillSkipped} open or ambiguous primitive sections left unfilled.`}\n\nSelection uses geometric heuristics, not learned weights. Coverage is measured on detected geometry; it does not certify that every part was detected.`);
+  app.dirty=true; render();
+}
 
 function resize(){
   const dpr=window.devicePixelRatio||1; const w=canvas.clientWidth, h=canvas.clientHeight;
@@ -1495,13 +1243,13 @@ function drawModelView(v, kind='combined', fixed=true){
   gl.enable(gl.DEPTH_TEST); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
   const mvp=getCamera(v.w/v.h,fixed,false);
   const forceMesh = kind==='input';
-  if(forceMesh || app.showMesh) drawMeshBuffer(app.mesh,mvp,[0.54,0.56,0.58, kind==='proxy'||kind==='cuts'?0.52:0.42]);
-  if(!forceMesh && app.showFeatures){
+  if(forceMesh || app.showMesh){gl.depthMask(false); drawMeshBuffer(app.mesh,mvp,[0.54,0.56,0.58,0.26]); gl.depthMask(true);}
+  if(!forceMesh && (app.showFeatures || app.mode==='features')){
     const typeFilter = {
       segmentPCAPlane:['segmentPCAPlane'], segmentPCAAxis:['segmentPCAAxis'], ridge:['ridge'], valley:['valley'], symmetryPlane:['symmetryPlane'], globalXYZ:['globalXYZ'], globalPCA:['globalPCA'], supports:['perpendicularSupport','symmetricSupport']
     }[kind];
     const featSet=allDisplayFeatures();
-    if(kind==='combined' || kind==='proxy' || kind==='featuresOnly' || kind==='cuts'){
+    if(kind==='combined' || kind==='proxy' || kind==='featuresOnly'){
       const fd=buildFeatureLineData(featSet, f=>kind==='featuresOnly' || kind==='combined' || ['ridge','valley','segmentPCAAxis','symmetryPlane','perpendicularSupport','symmetricSupport'].includes(f.type));
       drawColoredArray(fd.lines,mvp,gl.LINES,5); drawColoredArray(fd.points,mvp,gl.POINTS,8);
     }else if(typeFilter){
@@ -1509,12 +1257,18 @@ function drawModelView(v, kind='combined', fixed=true){
       drawColoredArray(fd.lines,mvp,gl.LINES,5); drawColoredArray(fd.points,mvp,gl.POINTS,10);
     }
   }
-  if(app.showPlanes && (kind==='combined' || kind==='proxy' || kind==='cuts')){
-    const pd=buildSelectedPlaneData(app.selectedPlanes);
-    gl.disable(gl.CULL_FACE); gl.enable(gl.BLEND); drawFlatTriangles(pd.fills,mvp,[0.12,0.22,0.55,0.12]);
-    drawColoredArray(pd.lines,mvp,gl.LINES,5);
+  if(kind==='combined' || kind==='proxy'){
+    const pd=app.sectionData;
+    if(app.showFilled && !app.partialSections && app.fillGeometry){
+      gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(1,1);
+      drawFlatTriangles(app.fillGeometry.positions,mvp,[0.92,0.94,0.96,1]);
+      gl.disable(gl.POLYGON_OFFSET_FILL);
+    }
+    if(app.showPlanes){
+      gl.depthMask(false); drawFlatTriangles(pd.fills,mvp,[0.12,0.22,0.55,0.12]); gl.depthMask(true);
+      drawColoredArray(pd.lines,mvp,gl.LINES,5);
+    }
     if(app.showContours) drawColoredArray(pd.contours,mvp,gl.LINES,4);
-    if(app.showCuts && (kind==='cuts' || app.mode==='proxy')) drawColoredArray(pd.cuts,mvp,gl.LINES,6);
   }else if(app.showPlanes && ['segmentPCAPlane','symmetryPlane','globalXYZ','globalPCA'].includes(kind)){
     const tmpLines=[], tmpFills=[]; const types={segmentPCAPlane:['segmentPCAPlane'],symmetryPlane:['symmetryPlane'],globalXYZ:['globalXYZ'],globalPCA:['globalPCA']}[kind]; const size=app.mesh.bbox.radius*1.02;
     for(const f of allDisplayFeatures().filter(f=>types.includes(f.type)).slice(0,18)){
@@ -1538,19 +1292,6 @@ function drawPlaneSpaceView(v, fixed=true){
 }
 function layouts(){
   const W=canvas.clientWidth,H=canvas.clientHeight; const m=12;
-  if(app.mode==='figure7'){
-    const topH=Math.max(220,H*0.43); const legendW=190;
-    const arr=[{x:m,y:m,w:W-legendW-3*m,h:topH-m,label:'plane-space after initialization',kind:'planespace'}];
-    const y0=topH+18; const tileW=(W-5*m)/4; const tileH=(H-y0-3*m)/2;
-    const labels=[['segment PCA plane\n(capsule)','segmentPCAPlane'],['segment PCA axis\n(spindle)','segmentPCAAxis'],['ridge\n(spindle)','ridge'],['valley\n(spindle)','valley'],['symmetry plane\n(point)','symmetryPlane'],['global XYZ\n(capsule)','globalXYZ'],['global PCA\n(capsule)','globalPCA'],['combined features','combined']];
-    labels.forEach((it,i)=>arr.push({x:m+(i%4)*(tileW+m),y:y0+Math.floor(i/4)*(tileH+m),w:tileW,h:tileH,label:it[0],kind:it[1]}));
-    return arr;
-  }
-  if(app.mode==='pipeline'){
-    const arr=[]; const tileW=(W-36)/3; const tileH=(H-30)/2;
-    const labels=[['1 input mesh','input'],['2 geometric features','featuresOnly'],['3 initialized plane-space','planespace'],['4 greedy feature coverage','combined'],['5 refined / partial sections','proxy'],['6 exportable proxy + cut marks','cuts']];
-    labels.forEach((it,i)=>arr.push({x:12+(i%3)*(tileW+6),y:12+Math.floor(i/3)*(tileH+6),w:tileW,h:tileH,label:it[0],kind:it[1]})); return arr;
-  }
   if(app.mode==='planespace') return [{x:12,y:12,w:W-24,h:H-24,label:'plane-space forms: point / capsule / spindle',kind:'planespace'}];
   if(app.mode==='features'){
     const arr=[]; const tileW=(W-36)/3; const tileH=(H-36)/3; const labels=[['segment PCA plane', 'segmentPCAPlane'],['segment PCA axis','segmentPCAAxis'],['ridges','ridge'],['valleys','valley'],['symmetry planes','symmetryPlane'],['global XYZ','globalXYZ'],['global PCA','globalPCA'],['combined features','combined'],['selected planar proxy','proxy']];
@@ -1568,19 +1309,13 @@ function drawOverlay(ls){
     ctx2.fillStyle='rgba(0,0,0,.75)';
     let y=v.y+v.h-7; for(let i=lines.length-1;i>=0;i--){ ctx2.fillText(lines[i],v.x+v.w/2,y); y-=14; }
   }
-  if(app.mode==='figure7'){
-    const x=W-176,y=34; ctx2.textAlign='left'; ctx2.textBaseline='middle'; ctx2.font='16px Inter, system-ui, sans-serif'; ctx2.fillStyle='rgba(0,0,0,.82)';
-    ctx2.fillText('point',x+52,y); ctx2.fillText('capsule',x+52,y+74); ctx2.fillText('spindle',x+52,y+148);
-    ctx2.fillStyle='rgb(0,199,190)'; ctx2.beginPath(); ctx2.arc(x+22,y,15,0,TAU); ctx2.fill();
-    ctx2.strokeStyle='rgb(210,40,40)'; ctx2.lineWidth=9; ctx2.lineCap='round'; ctx2.beginPath(); ctx2.moveTo(x+8,y+62); ctx2.lineTo(x+58,y+90); ctx2.stroke();
-    ctx2.strokeStyle='rgb(196,118,36)'; ctx2.lineWidth=5; ctx2.beginPath(); ctx2.moveTo(x+3,y+147); ctx2.bezierCurveTo(x+20,y+128,x+43,y+154,x+70,y+144); ctx2.stroke();
-  }
+
 }
 function render(t=0){
   if(!app.mesh || !gl) return;
   if(app.spin){ app.camera.theta += 0.004; app.dirty=true; }
   const ls=layouts(); gl.enable(gl.SCISSOR_TEST);
-  for(const v of ls){ if(v.kind==='planespace') drawPlaneSpaceView(v, app.mode==='figure7' || app.mode==='features' || app.mode==='pipeline'); else drawModelView(v, v.kind, app.mode!=='proxy'); }
+  for(const v of ls){ if(v.kind==='planespace') drawPlaneSpaceView(v,false); else drawModelView(v,v.kind,false); }
   gl.disable(gl.SCISSOR_TEST); drawOverlay(ls); app.dirty=false;
 }
 function tick(t=0){
@@ -1615,127 +1350,73 @@ function addGeomTube(g,a,b,r=0.008,sides=6){
     const a0=ringA[i], a1=ringA[j], b0=ringB[i], b1=ringB[j];
     const base=g.positions.length/3;
     addGeomVertex(g,a0.p,a0.n); addGeomVertex(g,b0.p,b0.n); addGeomVertex(g,b1.p,b1.n); addGeomVertex(g,a1.p,a1.n);
-    g.indices.push(base,base+1,base+2, base,base+2,base+3);
+    g.indices.push(base,base+2,base+1, base,base+3,base+2);
   }
 }
-function polygonArea2D(poly,u,v){
-  let A=0;
-  for(let i=0;i<poly.length;i++){ const p=poly[i], q=poly[(i+1)%poly.length]; const x1=dot(p,u), y1=dot(p,v), x2=dot(q,u), y2=dot(q,v); A+=x1*y2-x2*y1; }
-  return A*0.5;
-}
-function buildContourLoopsForPlane(contours, plane, eps=0.006){
-  const [u,v]=planeBasis(plane.n); const nodes=[], map=new Map(), adj=[];
-  function key(p){ return `${Math.round(dot(p,u)/eps)},${Math.round(dot(p,v)/eps)}`; }
-  function nodeId(p){
-    const k=key(p); let id=map.get(k);
-    if(id===undefined){ id=nodes.length; map.set(k,id); nodes.push(p); adj.push([]); }
-    else nodes[id]=mul(add(nodes[id],p),0.5);
-    return id;
+// Even-odd scanline tessellation preserves concavities and nested holes within
+// each primitive. Degree-two validation rejects open/branched contour graphs.
+// No centroid inset or normal offset: preview and export use the same surface.
+function fillPrimitiveSection(segments, plane){
+  const tolerance=1e-6, [u,v]=planeBasis(plane.n), nodes=[], grid=new Map(), edges=[];
+  function node(p){
+    const xy=[dot(p,u),dot(p,v)], ix=Math.floor(xy[0]/tolerance), iy=Math.floor(xy[1]/tolerance);
+    for(let x=ix-1;x<=ix+1;x++) for(let y=iy-1;y<=iy+1;y++){
+      for(const id of grid.get(`${x},${y}`)||[]){
+        const q=nodes[id].p;
+        if(Math.hypot(q[0]-xy[0],q[1]-xy[1])<=tolerance) return id;
+      }
+    }
+    const id=nodes.length, key=`${ix},${iy}`;
+    nodes.push({p:xy,degree:0});
+    if(!grid.has(key)) grid.set(key,[]);
+    grid.get(key).push(id); return id;
   }
+  const seen=new Set();
+  for(const s of segments){
+    const a=node(s.a), b=node(s.b); if(a===b) continue;
+    const key=a<b?`${a},${b}`:`${b},${a}`;
+    if(seen.has(key)) continue;
+    seen.add(key); edges.push([nodes[a].p,nodes[b].p]); nodes[a].degree++; nodes[b].degree++;
+  }
+  if(!edges.length || nodes.some(n=>n.degree!==2)) return null;
+  const ys=[...new Set(nodes.map(n=>n.p[1]))].sort((a,b)=>a-b), positions=[];
+  const point=(x,y)=>add(add(mul(u,x),mul(v,y)),mul(plane.n,plane.h));
+  function tri(a,b,c){
+    if(len(cross(sub(b,a),sub(c,a)))>1e-12) positions.push(...a,...b,...c);
+  }
+  const xAt=(e,y)=>e[0][0]+(y-e[0][1])*(e[1][0]-e[0][0])/(e[1][1]-e[0][1]);
+  for(let i=0;i<ys.length-1;i++){
+    const low=ys[i], high=ys[i+1]; if(high-low<1e-12) continue;
+    const mid=(low+high)/2;
+    const active=edges.filter(e=>Math.min(e[0][1],e[1][1])<mid && Math.max(e[0][1],e[1][1])>mid);
+    active.sort((a,b)=>xAt(a,mid)-xAt(b,mid));
+    if(active.length%2) return null;
+    for(let j=1;j<active.length;j++){
+      if(xAt(active[j-1],low)>xAt(active[j],low)+tolerance || xAt(active[j-1],high)>xAt(active[j],high)+tolerance) return null;
+    }
+    for(let j=0;j<active.length;j+=2){
+      const a=point(xAt(active[j],low),low), b=point(xAt(active[j+1],low),low);
+      const c=point(xAt(active[j+1],high),high), d=point(xAt(active[j],high),high);
+      tri(a,b,c); tri(a,c,d);
+    }
+  }
+  return positions;
+}
+function addFilledSections(g, contours, planes){
+  const groups=new Map(); let skipped=0;
   for(const s of contours){
-    const a=nodeId(s.a), b=nodeId(s.b); if(a===b) continue;
-    adj[a].push(b); adj[b].push(a);
+    const key=JSON.stringify([s.plane,s.segment]);
+    if(!groups.has(key)) groups.set(key,{plane:planes[s.plane],segments:[]});
+    groups.get(key).segments.push(s);
   }
-  const used=new Set(), loops=[];
-  const edgeKey=(a,b)=>a<b?`${a}|${b}`:`${b}|${a}`;
-  for(let start=0; start<nodes.length; start++){
-    for(const nb of adj[start]){
-      const ek=edgeKey(start,nb); if(used.has(ek)) continue;
-      const loop=[start]; let prev=start, cur=nb; used.add(ek); let guard=0;
-      while(guard++<nodes.length*4){
-        loop.push(cur);
-        if(cur===start) break;
-        const choices=adj[cur].filter(x=>x!==prev && !used.has(edgeKey(cur,x)));
-        let next=null;
-        if(choices.length){
-          if(choices.length===1) next=choices[0];
-          else {
-            const prevDir=norm(sub(nodes[cur],nodes[prev]));
-            choices.sort((a,b)=>dot(prevDir,norm(sub(nodes[b],nodes[cur])))-dot(prevDir,norm(sub(nodes[a],nodes[cur]))));
-            next=choices[0];
-          }
-        }else{
-          const back=adj[cur].find(x=>x===start && !used.has(edgeKey(cur,x))); if(back!==undefined) next=back;
-        }
-        if(next===null || next===undefined) break;
-        used.add(edgeKey(cur,next)); prev=cur; cur=next;
-      }
-      if(loop.length>3 && loop[loop.length-1]===start){
-        const pts=loop.slice(0,-1).map(i=>nodes[i]);
-        if(Math.abs(polygonArea2D(pts,u,v))>1e-5) loops.push(pts);
-      }
-    }
+  for(const {plane,segments} of groups.values()){
+    const positions=fillPrimitiveSection(segments,plane);
+    if(!positions){skipped++; continue;}
+    for(let i=0;i<positions.length;i+=9) addGeomTri(g,positions.slice(i,i+3),positions.slice(i+3,i+6),positions.slice(i+6,i+9),plane.n,plane.n,plane.n);
   }
-  return loops;
+  return skipped;
 }
-function pointInTri2D(p,a,b,c){
-  const v0=[c[0]-a[0],c[1]-a[1]], v1=[b[0]-a[0],b[1]-a[1]], v2=[p[0]-a[0],p[1]-a[1]];
-  const dot00=v0[0]*v0[0]+v0[1]*v0[1], dot01=v0[0]*v1[0]+v0[1]*v1[1], dot02=v0[0]*v2[0]+v0[1]*v2[1];
-  const dot11=v1[0]*v1[0]+v1[1]*v1[1], dot12=v1[0]*v2[0]+v1[1]*v2[1];
-  const invDen=1/Math.max(1e-12,(dot00*dot11-dot01*dot01));
-  const uu=(dot11*dot02-dot01*dot12)*invDen, vv=(dot00*dot12-dot01*dot02)*invDen;
-  return uu>=-1e-8 && vv>=-1e-8 && (uu+vv)<=1+1e-8;
-}
-function triangulateLoop2D(points2D){
-  if(points2D.length<3) return [];
-  const tris=[]; const idx=[]; for(let i=0;i<points2D.length;i++) idx.push(i);
-  function cross2(a,b,c){ return (b[0]-a[0])*(c[1]-a[1]) - (b[1]-a[1])*(c[0]-a[0]); }
-  let guard=0;
-  while(idx.length>3 && guard++<points2D.length*points2D.length){
-    let earFound=false;
-    for(let ii=0; ii<idx.length; ii++){
-      const i0=idx[(ii-1+idx.length)%idx.length], i1=idx[ii], i2=idx[(ii+1)%idx.length];
-      const a=points2D[i0], b=points2D[i1], c=points2D[i2];
-      if(cross2(a,b,c) <= 1e-10) continue;
-      let hasInside=false;
-      for(let jj=0; jj<idx.length; jj++){
-        const k=idx[jj]; if(k===i0 || k===i1 || k===i2) continue;
-        if(pointInTri2D(points2D[k],a,b,c)){ hasInside=true; break; }
-      }
-      if(hasInside) continue;
-      tris.push([i0,i1,i2]);
-      idx.splice(ii,1);
-      earFound=true;
-      break;
-    }
-    if(!earFound) break;
-  }
-  if(idx.length===3) tris.push([idx[0],idx[1],idx[2]]);
-  return tris;
-}
-function addFilledSections(g, contours, planes, radius=1){
-  const inset=Math.max(0.0001, radius*0.00035);
-  for(let pi=0; pi<planes.length; pi++){
-    const plane=planes[pi]; const planeContours=contours.filter(c=>c.plane===pi);
-    if(planeContours.length<3) continue;
-    const [u,v]=planeBasis(plane.n);
-    const loops=buildContourLoopsForPlane(planeContours,plane);
-    for(const loop0 of loops){
-      let loop=loop0.slice();
-      if(loop.length<3) continue;
-      let area=polygonArea2D(loop,u,v);
-      if(Math.abs(area)<1e-5) continue;
-      if(area<0){ loop.reverse(); area=-area; }
-      const centroid=avg3(loop);
-      const points2D=[];
-      for(const p of loop){
-        let x=dot(p,u), y=dot(p,v);
-        const dir=[x-dot(centroid,u), y-dot(centroid,v)];
-        const d=Math.hypot(dir[0],dir[1]);
-        if(d>1e-8){
-          x -= dir[0]/d * inset;
-          y -= dir[1]/d * inset;
-        }
-        points2D.push([x,y]);
-      }
-      const tris=triangulateLoop2D(points2D);
-      if(!tris.length) continue;
-      const shift=mul(plane.n, Math.max(0.00015, radius*0.00012));
-      const points3D=points2D.map(([x,y])=>add(add(mul(u,x),mul(v,y)), add(mul(plane.n,plane.h),shift)));
-      for(const t of tris) addGeomTri(g,points3D[t[0]],points3D[t[1]],points3D[t[2]],plane.n,plane.n,plane.n);
-    }
-  }
-}
+
 function minMaxVec3(values){
   const mn=[Infinity,Infinity,Infinity], mx=[-Infinity,-Infinity,-Infinity];
   for(let i=0;i<values.length;i+=3){ for(let k=0;k<3;k++){ mn[k]=Math.min(mn[k],values[i+k]); mx[k]=Math.max(mx[k],values[i+k]); } }
@@ -1746,9 +1427,7 @@ function buildProxyGLB(){
   const groups=[]; const r=app.mesh.bbox.radius||1;
   const matOriginal={name:'source mesh translucent', color:[0.55,0.56,0.58,0.28], doubleSided:true, alphaMode:'BLEND'};
   const matPanel={name:'selected plane panels', color:[0.12,0.24,0.70,0.22], doubleSided:true, alphaMode:'BLEND'};
-  const matFill={name:'filled planar sections', color:[0.92,0.94,0.96,1.0], doubleSided:true, alphaMode:'OPAQUE'};
   const matContour={name:'section contour tubes', color:[0.02,0.02,0.02,1.0], doubleSided:true, alphaMode:'OPAQUE'};
-  const matCut={name:'interlocking cut marks', color:[1.0,0.55,0.05,1.0], doubleSided:true, alphaMode:'OPAQUE'};
   if(app.exportOriginal){
     const g=makeGeomGroup('source mesh',matOriginal);
     for(const tri of app.mesh.triangles) addGeomTri(g,tri.p[0],tri.p[1],tri.p[2],tri.n[0]||tri.faceNormal,tri.n[1]||tri.faceNormal,tri.n[2]||tri.faceNormal);
@@ -1759,24 +1438,19 @@ function buildProxyGLB(){
     for(const p of app.selectedPlanes) addGeomPanel(g,p,r*1.06,0);
     groups.push(g);
   }
-  const exportContours=computeContours(app.mesh,app.selectedPlanes,{partial:app.partialSections,angleDeg:app.partialAngle});
+  const exportContours=app.contours;
   if(app.exportFilled && !app.partialSections){
-    const g=makeGeomGroup('filled planar sections',matFill); addFilledSections(g,exportContours,app.selectedPlanes,r); if(g.indices.length) groups.push(g);
+    if(app.fillGeometry.indices.length) groups.push(app.fillGeometry);
   }
   if(app.exportContours){
     const g=makeGeomGroup('section contour tubes',matContour); const tubeR=Math.max(0.0035,r*0.006);
     for(const s of exportContours) addGeomTube(g,s.a,s.b,tubeR,6);
     if(g.indices.length) groups.push(g);
   }
-  if(app.exportCuts){
-    const g=makeGeomGroup('interlocking cut marks',matCut); const tubeR=Math.max(0.0045,r*0.008);
-    for(const s of computePlaneCutLines(app.selectedPlanes,r)) addGeomTube(g,s.a,s.b,tubeR,6);
-    if(g.indices.length) groups.push(g);
-  }
   if(!groups.some(g=>g.indices.length)) throw new Error('No export geometry was generated with the current export toggles.');
-  return encodeGLB(groups);
+  return encodeGLB(groups,app.mesh.sourceTransform);
 }
-function encodeGLB(groups){
+function encodeGLB(groups, transform={center:[0,0,0],scale:1}){
   const json={asset:{version:'2.0',generator:'Planar Sections Proxy Lab'},scene:0,scenes:[{nodes:[0]}],nodes:[{name:'planar section proxy',mesh:0}],meshes:[{name:'planar section proxy',primitives:[]}],materials:[],buffers:[{byteLength:0}],bufferViews:[],accessors:[]};
   const binParts=[]; let byteOffset=0;
   function align(n=4){ const pad=(n-(byteOffset%n))%n; if(pad){ binParts.push(new Uint8Array(pad)); byteOffset+=pad; } }
@@ -1790,7 +1464,7 @@ function encodeGLB(groups){
   }
   for(const g of groups){
     if(!g.indices.length) continue;
-    const pos=new Float32Array(g.positions); const nor=new Float32Array(g.normals); const ind=new Uint32Array(g.indices); const mm=minMaxVec3(g.positions);
+    const pos=Float32Array.from(g.positions,(v,i)=>v/transform.scale+transform.center[i%3]); const nor=new Float32Array(g.normals); const ind=new Uint32Array(g.indices); const mm=minMaxVec3(pos);
     const posBV=addBufferView(pos,34962); const posAcc=json.accessors.push({bufferView:posBV,componentType:5126,count:pos.length/3,type:'VEC3',min:mm.min,max:mm.max})-1;
     const norBV=addBufferView(nor,34962); const norAcc=json.accessors.push({bufferView:norBV,componentType:5126,count:nor.length/3,type:'VEC3'})-1;
     const indBV=addBufferView(ind,34963); const indAcc=json.accessors.push({bufferView:indBV,componentType:5125,count:ind.length,type:'SCALAR'})-1;
@@ -1816,26 +1490,26 @@ function syncParams(){
   app.maxPlanes=parseInt(maxPlanes.value,10); app.threshold=parseFloat(threshold.value); app.featureRadius=parseFloat(radius.value); app.partialAngle=parseFloat(partialAngle.value);
   document.getElementById('maxPlanesText').textContent=app.maxPlanes; document.getElementById('thresholdText').textContent=app.threshold.toFixed(2); document.getElementById('radiusText').textContent=app.featureRadius.toFixed(2); document.getElementById('partialAngleText').textContent=`${app.partialAngle.toFixed(0)}°`;
 }
-[maxPlanes,threshold,radius,partialAngle].forEach(el=>el.addEventListener('input',()=>{syncParams(); analyzeCurrent();})); syncParams();
-document.getElementById('weightPreset').addEventListener('change',e=>{applyWeightPreset(e.target.value); analyzeCurrent();});
+[maxPlanes,threshold,radius,partialAngle].forEach(el=>el.addEventListener('input',syncParams));
+[maxPlanes,threshold,radius].forEach(el=>el.addEventListener('change',analyzeCurrent));
+partialAngle.addEventListener('change',updateSections); syncParams();
 document.getElementById('modeSelect').addEventListener('change',e=>{app.mode=e.target.value; app.dirty=true; render();});
 document.getElementById('meshToggle').addEventListener('change',e=>{app.showMesh=e.target.checked; render();});
 document.getElementById('featureToggle').addEventListener('change',e=>{app.showFeatures=e.target.checked; render();});
 document.getElementById('planeToggle').addEventListener('change',e=>{app.showPlanes=e.target.checked; render();});
 document.getElementById('contourToggle').addEventListener('change',e=>{app.showContours=e.target.checked; render();});
-document.getElementById('cutToggle').addEventListener('change',e=>{app.showCuts=e.target.checked; render();});
-document.getElementById('refineToggle').addEventListener('change',e=>{app.planeRefinement=e.target.checked; analyzeCurrent();});
-document.getElementById('adaptiveToggle').addEventListener('change',e=>{app.adaptiveFill=e.target.checked; analyzeCurrent();});
 document.getElementById('segmentCoverageToggle').addEventListener('change',e=>{app.segmentCoverage=e.target.checked; analyzeCurrent();});
 document.getElementById('thinPartToggle').addEventListener('change',e=>{app.thinPartCoverage=e.target.checked; analyzeCurrent();});
-document.getElementById('partialToggle').addEventListener('change',e=>{app.partialSections=e.target.checked; analyzeCurrent();});
-for(const [id,key] of [['exportContours','exportContours'],['exportFilled','exportFilled'],['exportPanels','exportPanels'],['exportCuts','exportCuts'],['exportOriginal','exportOriginal']]){ document.getElementById(id).addEventListener('change',e=>{app[key]=e.target.checked;}); }
+document.getElementById('partialToggle').addEventListener('change',e=>{app.partialSections=e.target.checked; updateSections();});
+document.getElementById('fillToggle').addEventListener('change',e=>{app.showFilled=e.target.checked; render();});
+for(const [id,key] of [['exportContours','exportContours'],['exportFilled','exportFilled'],['exportPanels','exportPanels'],['exportOriginal','exportOriginal']]){ document.getElementById(id).addEventListener('change',e=>{app[key]=e.target.checked;}); }
 document.getElementById('spinToggle').addEventListener('change',e=>{app.spin=e.target.checked;});
 document.getElementById('rerunBtn').addEventListener('click',analyzeCurrent);
-document.getElementById('demoBtn').addEventListener('click',()=>setMesh(createMannequinMesh()));
+document.getElementById('demoBtn').addEventListener('click',()=>{++loadRequest; setMesh(createMannequinMesh());});
 document.getElementById('fileInput').addEventListener('change',e=>{ const f=e.target.files[0]; if(f) loadFile(f); });
+let loadRequest=0;
 function loadFile(file){
-  const r=new FileReader(); log(`Loading ${file.name}…`); r.onload=()=>{ try{ const mesh=parseGLB(r.result); mesh.name=file.name; setMesh(mesh); } catch(err){ console.error(err); log(`Error loading ${file.name}:\n${err.message}`); } }; r.readAsArrayBuffer(file);
+  const request=++loadRequest; const r=new FileReader(); log(`Loading ${file.name}…`); r.onerror=()=>{if(request===loadRequest) log('The file could not be read.');}; r.onload=()=>{ if(request!==loadRequest) return; try{ const mesh=parseGLB(r.result); mesh.name=file.name; setMesh(mesh); } catch(err){ console.error(err); log(`Error loading ${file.name}:\n${err.message}`); } }; r.readAsArrayBuffer(file);
 }
 const drop=document.getElementById('drop'), stage=document.getElementById('stage');
 ['dragenter','dragover'].forEach(ev=>stage.addEventListener(ev,e=>{e.preventDefault(); drop.classList.add('active');}));
@@ -1845,11 +1519,12 @@ stage.addEventListener('drop',e=>{ const f=[...e.dataTransfer.files].find(f=>f.n
 let dragging=false, last=[0,0];
 canvas.addEventListener('pointerdown',e=>{dragging=true; last=[e.clientX,e.clientY]; canvas.setPointerCapture(e.pointerId);});
 canvas.addEventListener('pointermove',e=>{ if(!dragging) return; const dx=e.clientX-last[0], dy=e.clientY-last[1]; last=[e.clientX,e.clientY]; app.camera.theta += dx*0.007; app.camera.phi=clamp(app.camera.phi+dy*0.006,-1.35,1.35); render(); });
+canvas.addEventListener('pointercancel',()=>{dragging=false;});
 canvas.addEventListener('pointerup',e=>{dragging=false; try{canvas.releasePointerCapture(e.pointerId);}catch(_){}});
 canvas.addEventListener('wheel',e=>{e.preventDefault(); app.camera.dist=clamp(app.camera.dist*Math.exp(e.deltaY*0.001),0.75,10); render();},{passive:false});
 
 document.getElementById('exportBtn').addEventListener('click',()=>{
-  const payload={model:app.mesh?.name, generatedAt:new Date().toISOString(), parameters:{maxPlanes:app.maxPlanes,threshold:app.threshold,featureRadius:app.featureRadius,partialSections:app.partialSections,partialAngle:app.partialAngle,planeRefinement:app.planeRefinement,adaptiveFill:app.adaptiveFill,segmentCoverage:app.segmentCoverage,thinPartCoverage:app.thinPartCoverage,thinCoverageSummary:app.thinCoverageSummary}, planes:app.selectedPlanes.map((p,i)=>({index:i+1, reason:p.reason, normal:p.n, offset:p.h, equation:'dot(normal, x) = offset', score:p.score, contourLength:p.contourLength})), trace:app.pipelineTrace};
+  const payload={model:app.mesh?.name, coordinateSpace:'source GLB scene coordinates', sourceTransform:app.mesh.sourceTransform, generatedAt:new Date().toISOString(), parameters:{maxPlanes:app.maxPlanes,threshold:app.threshold,featureRadius:app.featureRadius,partialSections:app.partialSections,partialAngle:app.partialAngle,segmentCoverage:app.segmentCoverage,thinPartCoverage:app.thinPartCoverage,thinCoverageSummary:app.thinCoverageSummary}, planes:app.selectedPlanes.map((p,i)=>({index:i+1, reason:p.reason, normal:p.n, offset:p.h/app.mesh.sourceTransform.scale+dot(p.n,app.mesh.sourceTransform.center), equation:'dot(normal, sourcePosition) = offset', score:p.score, contourLength:p.contourLength/app.mesh.sourceTransform.scale})), trace:app.pipelineTrace};
   downloadBlob(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),'planar-section-proxy.json');
 });
 document.getElementById('exportGlbBtn').addEventListener('click',()=>{
