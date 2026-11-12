@@ -13,7 +13,7 @@
   body {
     margin: 0; background: var(--bg); color: var(--ink);
     font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    min-height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+    min-height: 100vh; display: flex; flex-direction: column; overflow: auto;
   }
   header {
     position: sticky; top: 0; z-index: 5; background: rgba(247,247,248,.85);
@@ -33,7 +33,7 @@
     width: 100%; max-width: 1280px; flex: 1 1 auto; min-height: 0; margin: 0 auto;
     padding: 12px 24px 10px; display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 12px;
+    grid-template-rows: none; grid-auto-rows: minmax(160px, auto); gap: 12px;
   }
   .section, .grid { display: contents; }
   .section h2 { display: none; }
@@ -66,7 +66,7 @@
   footer { width: 100%; max-width: 1280px; flex: none; margin: 0 auto; padding: 0 24px 10px; color: var(--muted); font-size: 11px; }
   @media (max-width: 1050px) {
     body { overflow: auto; }
-    main { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(150px, 1fr)); }
+    main { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: none; grid-auto-rows: minmax(160px, auto); }
   }
   @media (max-width: 720px) {
     main { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: none; grid-auto-rows: minmax(150px, auto); padding: 12px 14px 18px; }
@@ -83,7 +83,7 @@
   <header>
     <div class="bar">
       <h1>Webtooling Pages</h1>
-      <span class="count">13 outils</span>
+      <span class="count">27 outils</span>
       <div class="search"><input id="q" type="search" placeholder="Rechercher un outil…" autocomplete="off"></div>
     </div>
   </header>
@@ -230,8 +230,82 @@
         </a>
         </div>
       </section>
+      <section class="section" data-cat="QuickTiny">
+        <h2>QuickTiny · outils du quotidien</h2><div class="grid">
+        <a class="card" href="tools/quicktiny/compress-image.html?lang=fr" data-search="image compressor shrink an image for your next upload. everything happens on your device. compresseur d’images réduisez la taille d’une image avant de l’envoyer. tout reste sur votre appareil. image quicktiny offline autonome français english">
+          <div class="card-head"><svg class="tool-icon icon-image" aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="9" r="1.5"/><path d="m5 17 4-4 3 3 3-5 4 6"/></svg><h3>Compresseur d’images</h3><span class="badge">FR / EN</span></div>
+          <p class="desc">Réduisez la taille d’une image avant de l’envoyer. Tout reste sur votre appareil.</p>
+          <div class="meta"><span>QuickTiny · Image</span><span>maj 12/11/2026</span></div>
+        </a>
+        <a class="card" href="tools/quicktiny/word-counter.html?lang=fr" data-search="word counter instant word, character, sentence, and line counts as you write. compteur de mots comptez instantanément les mots, les caractères, les phrases et les lignes. text quicktiny offline autonome français english">
+          <div class="card-head"><svg class="tool-icon icon-settings" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h16M12 5v15M8 20h8M4 8V5m16 3V5"/></svg><h3>Compteur de mots</h3><span class="badge">FR / EN</span></div>
+          <p class="desc">Comptez instantanément les mots, les caractères, les phrases et les lignes.</p>
+          <div class="meta"><span>QuickTiny · Text</span><span>maj 12/11/2026</span></div>
+        </a>
+        <a class="card" href="tools/quicktiny/clean-text.html?lang=fr" data-search="clean text tidy up copied text by removing extra spaces, tabs, and blank lines. nettoyage de texte supprimez les espaces, les tabulations et les lignes vides superflus. text quicktiny offline autonome français english">
+          <div class="card-head"><svg class="tool-icon icon-settings" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h16M12 5v15M8 20h8M4 8V5m16 3V5"/></svg><h3>Nettoyage de texte</h3><span class="badge">FR / EN</span></div>
+          <p class="desc">Supprimez les espaces, les tabulations et les lignes vides superflus.</p>
+          <div class="meta"><span>QuickTiny · Text</span><span>maj 12/11/2026</span></div>
+        </a>
+        <a class="card" href="tools/quicktiny/json-formatter.html?lang=fr" data-search="json formatter format, validate, and minify json with clear feedback. formateur json mettez en forme, validez et compactez du json avec des messages clairs. data quicktiny offline autonome français english">
+          <div class="card-head"><svg class="tool-icon icon-settings" aria-hidden="true" viewBox="0 0 24 24"><path d="m8 7-5 5 5 5m8-10 5 5-5 5m-3-14-2 18"/></svg><h3>Formateur JSON</h3><span class="badge">FR / EN</span></div>
+          <p class="desc">Mettez en forme, validez et compactez du JSON avec des messages clairs.</p>
+          <div class="meta"><span>QuickTiny · Data</span><span>maj 12/11/2026</span></div>
+        </a>
+        <a class="card" href="tools/quicktiny/seo-slug-generator.html?lang=fr" data-search="seo slug generator turn a title into a simple, readable url slug. générateur de slugs seo transformez un titre en un slug simple et lisible pour vos url. seo quicktiny offline autonome français english">
+          <div class="card-head"><svg class="tool-icon icon-settings" aria-hidden="true" viewBox="0 0 24 24"><path d="m8 15-2 2a4 4 0 0 1-5-6l5-5a4 4 0 0 1 6 1m0 10a4 4 0 0 0 6 1l5-5a4 4 0 0 0-6-5l-2 2m-4 4 4-4"/></svg><h3>Générateur de slugs SEO</h3><span class="badge">FR / EN</span></div>
+          <p class="desc">Transformez un titre en un slug simple et lisible pour vos URL.</p>
+          <div class="meta"><span>QuickTiny · SEO</span><span>maj 12/11/2026</span></div>
+        </a>
+        <a class="card" href="tools/quicktiny/case-converter.html?lang=fr" data-search="case converter switch between sentence case, title case, lowercase, and uppercase. convertisseur de casse passez en casse de phrase, casse de titre, minuscules ou majuscules. text quicktiny offline autonome français english">
+          <div class="card-head"><svg class="tool-icon icon-settings" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h16M12 5v15M8 20h8M4 8V5m16 3V5"/></svg><h3>Convertisseur de casse</h3><span class="badge">FR / EN</span></div>
+          <p class="desc">Passez en casse de phrase, casse de titre, minuscules ou MAJUSCULES.</p>
+          <div class="meta"><span>QuickTiny · Text</span><span>maj 12/11/2026</span></div>
+        </a>
+        <a class="card" href="tools/quicktiny/remove-duplicate-lines.html?lang=fr" data-search="remove duplicate lines remove repeated lines while keeping their original order. suppression des doublons supprimez les lignes répétées en conservant leur ordre d’origine. text quicktiny offline autonome français english">
+          <div class="card-head"><svg class="tool-icon icon-settings" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h16M12 5v15M8 20h8M4 8V5m16 3V5"/></svg><h3>Suppression des doublons</h3><span class="badge">FR / EN</span></div>
+          <p class="desc">Supprimez les lignes répétées en conservant leur ordre d’origine.</p>
+          <div class="meta"><span>QuickTiny · Text</span><span>maj 12/11/2026</span></div>
+        </a>
+        <a class="card" href="tools/quicktiny/sort-lines.html?lang=fr" data-search="sort lines sort lines alphabetically, naturally, or by length. tri de lignes triez des lignes par ordre alphabétique, naturel ou par longueur. text quicktiny offline autonome français english">
+          <div class="card-head"><svg class="tool-icon icon-settings" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h16M12 5v15M8 20h8M4 8V5m16 3V5"/></svg><h3>Tri de lignes</h3><span class="badge">FR / EN</span></div>
+          <p class="desc">Triez des lignes par ordre alphabétique, naturel ou par longueur.</p>
+          <div class="meta"><span>QuickTiny · Text</span><span>maj 12/11/2026</span></div>
+        </a>
+        <a class="card" href="tools/quicktiny/base64-encode-decode.html?lang=fr" data-search="base64 encode/decode encode unicode text as base64 or decode it back to readable text. encodage et décodage base64 encodez du texte unicode en base64 ou retrouvez le texte d’origine. data quicktiny offline autonome français english">
+          <div class="card-head"><svg class="tool-icon icon-settings" aria-hidden="true" viewBox="0 0 24 24"><path d="m8 7-5 5 5 5m8-10 5 5-5 5m-3-14-2 18"/></svg><h3>Encodage et décodage Base64</h3><span class="badge">FR / EN</span></div>
+          <p class="desc">Encodez du texte Unicode en Base64 ou retrouvez le texte d’origine.</p>
+          <div class="meta"><span>QuickTiny · Data</span><span>maj 12/11/2026</span></div>
+        </a>
+        <a class="card" href="tools/quicktiny/url-encode-decode.html?lang=fr" data-search="url encode/decode encode a url component or decode percent-encoded text. encodage et décodage d’url encodez un composant d’url ou décodez du texte encodé avec des pourcentages. data quicktiny offline autonome français english">
+          <div class="card-head"><svg class="tool-icon icon-settings" aria-hidden="true" viewBox="0 0 24 24"><path d="m8 7-5 5 5 5m8-10 5 5-5 5m-3-14-2 18"/></svg><h3>Encodage et décodage d’URL</h3><span class="badge">FR / EN</span></div>
+          <p class="desc">Encodez un composant d’URL ou décodez du texte encodé avec des pourcentages.</p>
+          <div class="meta"><span>QuickTiny · Data</span><span>maj 12/11/2026</span></div>
+        </a>
+        <a class="card" href="tools/quicktiny/timestamp-converter.html?lang=fr" data-search="timestamp converter convert unix seconds or milliseconds to dates, and dates back to timestamps. convertisseur d’horodatage convertissez des horodatages unix en secondes ou millisecondes en dates, et inversement. utility quicktiny offline autonome français english">
+          <div class="card-head"><svg class="tool-icon icon-settings" aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><h3>Convertisseur d’horodatage</h3><span class="badge">FR / EN</span></div>
+          <p class="desc">Convertissez des horodatages Unix en secondes ou millisecondes en dates, et inversement.</p>
+          <div class="meta"><span>QuickTiny · Utility</span><span>maj 12/11/2026</span></div>
+        </a>
+        <a class="card" href="tools/quicktiny/password-generator.html?lang=fr" data-search="password generator create random passwords with the length and characters you choose. générateur de mots de passe créez des mots de passe aléatoires avec la longueur et les caractères de votre choix. utility quicktiny offline autonome français english">
+          <div class="card-head"><svg class="tool-icon icon-settings" aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><h3>Générateur de mots de passe</h3><span class="badge">FR / EN</span></div>
+          <p class="desc">Créez des mots de passe aléatoires avec la longueur et les caractères de votre choix.</p>
+          <div class="meta"><span>QuickTiny · Utility</span><span>maj 12/11/2026</span></div>
+        </a>
+        <a class="card" href="tools/quicktiny/pdf-to-jpg.html?lang=fr" data-search="pdf to jpg recover images from a scanned pdf and download jpg files within your size limit. pdf vers jpg récupérez les images d’un pdf numérisé et téléchargez des jpg respectant votre taille maximale. image quicktiny offline autonome français english">
+          <div class="card-head"><svg class="tool-icon icon-image" aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="9" r="1.5"/><path d="m5 17 4-4 3 3 3-5 4 6"/></svg><h3>PDF vers JPG</h3><span class="badge">FR / EN</span></div>
+          <p class="desc">Récupérez les images d’un PDF numérisé et téléchargez des JPG respectant votre taille maximale.</p>
+          <div class="meta"><span>QuickTiny · Image</span><span>maj 12/11/2026</span></div>
+        </a>
+        <a class="card" href="tools/quicktiny/batch-image-compressor.html?lang=fr" data-search="batch image compressor compress multiple images locally and download them together as a zip. compression d’images par lot compressez plusieurs images en local et téléchargez-les ensemble dans un zip. image quicktiny offline autonome français english">
+          <div class="card-head"><svg class="tool-icon icon-image" aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="9" r="1.5"/><path d="m5 17 4-4 3 3 3-5 4 6"/></svg><h3>Compression d’images par lot</h3><span class="badge">FR / EN</span></div>
+          <p class="desc">Compressez plusieurs images en local et téléchargez-les ensemble dans un ZIP.</p>
+          <div class="meta"><span>QuickTiny · Image</span><span>maj 12/11/2026</span></div>
+        </a>
+        </div>
+      </section>
   </main>
-  <footer>Généré par ToolDeck · 2026</footer>
+  <footer>Généré par ToolDeck · 2026 · <a href="tools/quicktiny/index.html?lang=fr">Collection QuickTiny</a> · <a href="downloads/quicktiny-standalone-tools.zip" download>Télécharger les 14 outils QuickTiny en HTML</a></footer>
 <script>
   const q = document.getElementById('q');
   if (q) q.addEventListener('input', () => {

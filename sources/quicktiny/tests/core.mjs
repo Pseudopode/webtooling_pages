@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';import {execFileSync} from 'node:child_process';import vm from 'node:vm';import {readFile} from 'node:fs/promises';
+const context=vm.createContext({TextEncoder,TextDecoder,crypto,Uint32Array,Uint8Array,DataView,Blob,btoa,atob});vm.runInContext(await readFile('src/core.js','utf8')+';globalThis.Core=Core;',context);const c=context.Core;
+assert.deepEqual(JSON.parse(JSON.stringify(c.count('Hello, world!\nHi 👋.'))),{words:4,characters:19,noSpaces:16,sentences:2,lines:2});assert.equal(c.count('').words,0);assert.equal(c.count('   ').sentences,0);
+assert.equal(c.clean('  hello\t there  \n\n\n\n world  '),'hello there\n\nworld');assert.equal(c.slug("L’été: Café & Tea!"),'lete-cafe-tea');assert.equal(c.slug('A B','_'),'a_b');
+assert.equal(c.changeCase('héllo WORLD. another sentence!','sentence'),'Héllo world. Another sentence!');assert.equal(c.changeCase('hello WORLD','title'),'Hello World');assert.equal(c.changeCase('Hi','upper'),'HI');assert.equal(c.changeCase('Hi','lower'),'hi');
+assert.equal(c.dedupe('A\na\n A \nb',{ignoreCase:true,trim:true}),'A\nb');assert.equal(c.dedupe('A\na\nA'),'A\na');assert.equal(c.dedupe('\n\n',{empty:true}),'');
+assert.equal(c.sort('b\na\nc','desc'),'c\nb\na');assert.equal(c.sort('x10\nx2','natural'),'x2\nx10');assert.equal(c.sort('xx\nx\nxxx','length'),'x\nxx\nxxx');
+for(const value of ['','café 日本語 👋','hello','a'.repeat(100000)])assert.equal(c.decode64(c.encode64(value)),value);for(const bad of ['a','@bad','a===','////'])assert.throws(()=>c.decode64(bad));
+assert.equal(c.parseTimestamp('0').toISOString(),'1970-01-01T00:00:00.000Z');assert.equal(c.parseTimestamp('-1').getTime(),-1000);assert.equal(c.parseTimestamp('1700000000000','milliseconds').getTime(),1700000000000);for(const bad of ['NaN','','Infinity','1e100'])assert.throws(()=>c.parseTimestamp(bad));
+for(let i=0;i<100;i++){const p=c.password(24,['ABC','abc','123','!@#']);assert.equal(p.length,24);for(const pattern of [/[ABC]/,/[abc]/,/[123]/,/[!@#]/])assert(pattern.test(p));}assert.throws(()=>c.password(20,[]));assert(!/[0O1lI|]/.test(c.password(100,['abc01OIl|'],true)));
+const archive=c.zip([{name:'café.txt',bytes:new TextEncoder().encode('hello 👋')},{name:'empty.txt',bytes:new Uint8Array()}]);
+execFileSync('python3',['-c',"import io,zipfile,sys;z=zipfile.ZipFile(io.BytesIO(sys.stdin.buffer.read()));assert z.testzip() is None;assert z.read('café.txt').decode()=='hello 👋';assert z.read('empty.txt')==b''"],{input:Buffer.from(await archive.arrayBuffer())});
+console.log('CORE_OK: conversions, errors, Unicode, counters, passwords, valid ZIP archives');

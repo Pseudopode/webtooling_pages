@@ -1,0 +1,4 @@
+{
+  "pdf-lib": {"version":"1.17.1","license":"MIT","source":"https://registry.npmjs.org/pdf-lib/-/pdf-lib-1.17.1.tgz","files":["pdf-lib/pdf-lib.min.js","pdf-lib/LICENSE.md"]},
+  "pdfjs-dist": {"version":"6.5.438","license":"Apache-2.0","source":"https://registry.npmjs.org/pdfjs-dist/-/pdfjs-dist-6.5.438.tgz","files":["pdfjs/pdf.min.mjs","pdfjs/pdf.worker.min.mjs","pdfjs/LICENSE"]}
+}

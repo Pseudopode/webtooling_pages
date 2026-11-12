@@ -1,0 +1,19 @@
+{
+  "name": "quicktiny-standalone-tools",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node tests/structure.mjs && node tests/core.mjs && node tests/dom.mjs && node tests/i18n.mjs && node tests/pdf.mjs && node tests/pdf-ui.mjs",
+    "start": "python3 -m http.server 4173 --directory dist",
+    "test:browser": "node tests/browser.mjs",
+    "package": "node scripts/package.mjs",
+    "test:update-browser": "node tests/update-browser.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "^26.1.0",
+    "playwright-core": "^1.56.0",
+    "sharp": "^0.34.0"
+  }
+}
