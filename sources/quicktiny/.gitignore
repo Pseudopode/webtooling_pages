@@ -3,3 +3,5 @@ tests/evidence/
 .DS_Store
 .openai/local/
 tests/fixtures/
+
+.unlazy/

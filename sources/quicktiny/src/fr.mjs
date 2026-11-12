@@ -31,6 +31,12 @@ export const frenchGuides={
  'pdf-to-jpg':['Choisissez le PDF exporté par votre application de numérisation.','Définissez la taille maximale de chaque JPG et la méthode.','Extrayez les images puis téléchargez-les seules ou dans un ZIP.','L’extraction conserve le JPG original s’il respecte la limite. Si aucun JPG n’est intégré, choisissez la conversion des pages entières. La recompression peut réduire les détails fins.']
 };
 export const frenchStrings={
+ 'Focused tools for the things you do every day.':'Des outils pratiques pour vos tâches du quotidien.',
+ 'No uploads. No signups. All 58 tools run on your device.':'Aucun envoi. Aucune inscription. Les 58 outils fonctionnent sur votre appareil.',
+ 'Independent, private browser tools. Independent pages that work offline.':'Des outils confidentiels dans votre navigateur. Des pages autonomes qui fonctionnent hors ligne.',
+ 'Documents':'Documents','Video':'Vidéo','Gaming':'Jeux','Finance':'Finance','Health':'Santé','Education':'Études',
+ 'Documents TOOL':'OUTIL DOCUMENT','Video TOOL':'OUTIL VIDÉO','Gaming TOOL':'OUTIL JEU','Finance TOOL':'OUTIL FINANCE','Health TOOL':'OUTIL SANTÉ','Education TOOL':'OUTIL ÉTUDES',
+
  'Language':'Langue',
  'Page conversion is unavailable in this browser. Use a recent version of Chrome, Edge, Firefox, or Safari.':'La conversion des pages est indisponible dans ce navigateur. Utilisez une version récente de Chrome, Edge, Firefox ou Safari.',
  'Image':'Image','Text':'Texte','Data':'Données','SEO':'SEO','Utility':'Utilitaires','All':'Tous',

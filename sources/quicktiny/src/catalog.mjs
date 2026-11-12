@@ -1,4 +1,8 @@
-export const tools = [
+import {extraTools as calculators} from './extra/calculators/catalog.mjs';
+import {extraTools as developer} from './extra/developer/catalog.mjs';
+import {extraTools as design} from './extra/design/catalog.mjs';
+import {extraTools as media} from './extra/media/catalog.mjs';
+export const baseTools = [
  ['compress-image','Image Compressor','Image','Reduce image size, keep the detail.','Shrink an image for your next upload. Everything happens on your device.','image'],
  ['word-counter','Word Counter','Text','Make every word count.','Instant word, character, sentence, and line counts as you write.','type'],
  ['clean-text','Clean Text','Text','A fresh start for messy text.','Tidy up copied text by removing extra spaces, tabs, and blank lines.','spark'],
@@ -14,3 +18,5 @@ export const tools = [
  ['pdf-to-jpg','PDF to JPG','Image','Your scan, back as a JPG.','Recover images from a scanned PDF and download JPG files within your size limit.','image'],
  ['batch-image-compressor','Batch Image Compressor','Image','A lighter batch. A faster workflow.','Compress multiple images locally and download them together as a ZIP.','layers']
 ].map(([slug,name,category,headline,description,icon])=>({slug,name,category,headline,description,icon}));
+
+export const tools=[...baseTools,...calculators,...developer,...design,...media];

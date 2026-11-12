@@ -1,0 +1,2 @@
+import {readdir,readFile} from 'node:fs/promises';
+export async function collectNotices(){const entries=[];async function visit(dir){for(const item of await readdir(dir,{withFileTypes:true})){const path=dir+'/'+item.name;if(item.isDirectory())await visit(path);else if(/license|notice/i.test(item.name)&&!item.name.endsWith('.js'))entries.push(path);}}await visit('src/extra');const paths=['vendor/pdf-lib/LICENSE.md','vendor/pdfjs/LICENSE',...entries.sort()];const texts=await Promise.all(paths.map(async path=>path+'\n'+await readFile(path,'utf8')));return texts.join('\n\n');}

@@ -1,13 +1,16 @@
 Repo of all the tooling pages I'm creating.
 
-## QuickTiny tools
+## Complete QuickTiny collection
 
-Fourteen independent, offline HTML tools are in [tools/quicktiny](tools/quicktiny/index.html), including PDF-to-JPG extraction with a maximum JPG file size. Every page has a warm light theme and English/French buttons with flags. The main catalog lists each tool individually.
+All **57 tools from the reference screenshots**, plus the custom PDF-to-JPG tool, are available as **58 independent HTML pages** in [tools/quicktiny](tools/quicktiny/index.html). Every page uses a warm light theme and English/French controls with small flags. The main catalog lists every tool individually and now contains 71 tools.
 
-- [PDF to JPG](tools/quicktiny/pdf-to-jpg.html): retrieve embedded original JPGs, recompress to a byte limit, or convert whole pages.
-- [Download all 14 standalone pages](downloads/quicktiny-standalone-tools.zip).
-- [Editable source and test instructions](sources/quicktiny/README.md).
+- [Open the complete collection](tools/quicktiny/index.html)
+- [Download all 58 standalone pages](downloads/quicktiny-standalone-tools.zip)
+- [Editable source, inventory, behavior and test instructions](sources/quicktiny/README.md)
+- [Screenshot inventory](sources/quicktiny/SCREENSHOT-TOOLS.json)
 
-These are static pages: open the HTML files directly or serve the repository with any static host. No accounts, API keys, runtime dependencies, or uploads are needed. Keep the HTML files together for sidebar navigation.
+The HTML files include their required scripts and assets; there are no runtime CDN dependencies or uploads. OCR, automatic subtitles, and AI-assisted clip captions include their recognition engines/models and are therefore larger. Device/codec support depends on the browser.
 
-To rebuild: run `node build.mjs` in `sources/quicktiny`, then copy its generated `dist/*.html` into `tools/quicktiny/`. The archive can be regenerated with `npm run package` and copied from `sources/quicktiny-standalone-tools.zip` into `downloads/`.
+Build in `sources/quicktiny` with `node build.mjs`; copy generated `dist/*.html` into `tools/quicktiny/`. Run `npm run package` to create `sources/quicktiny-standalone-tools.zip`, then copy it to `downloads/`. For tests install development dependencies and run `npm test`.
+
+All earlier tools outside the QuickTiny collection remain unchanged. Actual browser recording/hardware checks remain unverified in the current sandbox; standalone DOM, pure algorithms, native raster, OCR and speech inference checks pass.

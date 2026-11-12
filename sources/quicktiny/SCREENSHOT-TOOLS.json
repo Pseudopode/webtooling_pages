@@ -1,0 +1,230 @@
+[
+  {
+    "slug": "compress-image",
+    "name": "Image Compressor"
+  },
+  {
+    "slug": "pdf-tools",
+    "name": "PDF Tools"
+  },
+  {
+    "slug": "product-photo-studio",
+    "name": "Product Photo Studio"
+  },
+  {
+    "slug": "word-counter",
+    "name": "Word Counter"
+  },
+  {
+    "slug": "clean-text",
+    "name": "Clean Text"
+  },
+  {
+    "slug": "json-formatter",
+    "name": "JSON Formatter"
+  },
+  {
+    "slug": "json-converter",
+    "name": "JSON Converter"
+  },
+  {
+    "slug": "seo-slug-generator",
+    "name": "SEO Slug Generator"
+  },
+  {
+    "slug": "case-converter",
+    "name": "Case Converter"
+  },
+  {
+    "slug": "remove-duplicate-lines",
+    "name": "Remove Duplicate Lines"
+  },
+  {
+    "slug": "sort-lines",
+    "name": "Sort Lines"
+  },
+  {
+    "slug": "base64-encode-decode",
+    "name": "Base64 Encode/Decode"
+  },
+  {
+    "slug": "url-encode-decode",
+    "name": "URL Encode/Decode"
+  },
+  {
+    "slug": "timestamp-converter",
+    "name": "Timestamp Converter"
+  },
+  {
+    "slug": "password-generator",
+    "name": "Password Generator"
+  },
+  {
+    "slug": "batch-image-compressor",
+    "name": "Batch Image Compressor (Pro)"
+  },
+  {
+    "slug": "controller-tester",
+    "name": "Controller Tester"
+  },
+  {
+    "slug": "mouse-test",
+    "name": "Mouse Test"
+  },
+  {
+    "slug": "sensitivity-converter",
+    "name": "Sensitivity Converter"
+  },
+  {
+    "slug": "fancy-name-generator",
+    "name": "Fancy Name Generator"
+  },
+  {
+    "slug": "qr-code-generator",
+    "name": "QR Code Generator"
+  },
+  {
+    "slug": "utm-builder",
+    "name": "UTM Builder"
+  },
+  {
+    "slug": "social-image-resizer",
+    "name": "Social Image Resizer"
+  },
+  {
+    "slug": "meta-tag-preview",
+    "name": "SERP & Social Preview"
+  },
+  {
+    "slug": "color-palette-extractor",
+    "name": "Brand Color Palette"
+  },
+  {
+    "slug": "regex-tester",
+    "name": "Regex Tester"
+  },
+  {
+    "slug": "diff-checker",
+    "name": "Diff Checker"
+  },
+  {
+    "slug": "jwt-decoder",
+    "name": "JWT Decoder"
+  },
+  {
+    "slug": "cron-explainer",
+    "name": "Cron Explainer"
+  },
+  {
+    "slug": "gta-6",
+    "name": "GTA 6 Zone"
+  },
+  {
+    "slug": "ai-clip-maker",
+    "name": "AI Clip Maker"
+  },
+  {
+    "slug": "video-templates",
+    "name": "Video Templates"
+  },
+  {
+    "slug": "horizontal-to-vertical-video",
+    "name": "Horizontal to Vertical Video"
+  },
+  {
+    "slug": "remove-silence-from-video",
+    "name": "Silence Remover"
+  },
+  {
+    "slug": "youtube-thumbnail-maker",
+    "name": "YouTube Thumbnail Maker"
+  },
+  {
+    "slug": "add-subtitles-to-video",
+    "name": "Auto Subtitles"
+  },
+  {
+    "slug": "creator-studio",
+    "name": "Creator Studio"
+  },
+  {
+    "slug": "animated-captions",
+    "name": "Animated Captions"
+  },
+  {
+    "slug": "glass-slides",
+    "name": "Glass Slides"
+  },
+  {
+    "slug": "motion-titles",
+    "name": "Motion Titles"
+  },
+  {
+    "slug": "paper-animation",
+    "name": "Paper Motion Studio"
+  },
+  {
+    "slug": "image-to-text",
+    "name": "Image to Text"
+  },
+  {
+    "slug": "cv-builder",
+    "name": "CV Builder"
+  },
+  {
+    "slug": "saudi-salary-calculator",
+    "name": "Saudi Salary Calculator"
+  },
+  {
+    "slug": "unit-converter",
+    "name": "Unit Converter"
+  },
+  {
+    "slug": "ramadan-countdown",
+    "name": "Ramadan Countdown"
+  },
+  {
+    "slug": "zakat-al-fitr-calculator",
+    "name": "Zakat al-Fitr Calculator"
+  },
+  {
+    "slug": "gpa-calculator",
+    "name": "GPA Calculator"
+  },
+  {
+    "slug": "weighted-grade-calculator",
+    "name": "Weighted Grade Calculator"
+  },
+  {
+    "slug": "prayer-times",
+    "name": "Prayer Times"
+  },
+  {
+    "slug": "days-between-dates",
+    "name": "Days Between Dates"
+  },
+  {
+    "slug": "loan-calculator",
+    "name": "Loan Calculator"
+  },
+  {
+    "slug": "bmi-calculator",
+    "name": "BMI Calculator"
+  },
+  {
+    "slug": "pregnancy-due-date-calculator",
+    "name": "Due Date Calculator"
+  },
+  {
+    "slug": "compress-image-to-kb",
+    "name": "Compress Image to KB"
+  },
+  {
+    "slug": "percentage-calculator",
+    "name": "Percentage Calculator"
+  },
+  {
+    "slug": "image-converter",
+    "name": "Image Converter"
+  }
+]

@@ -1,0 +1,4 @@
+{
+ "qrcode-generator":{"version":"1.4.4","license":"MIT","source":"https://github.com/kazuhikoarase/qrcode-generator","files":["qrcode.js","qrcode_UTF8.js","qrcode-LICENSE.txt"]},
+ "heic2any":{"version":"0.0.4","license":"MIT","source":"https://github.com/alexcorvi/heic2any","files":["heic-lazy.js","heic2any-LICENSE.md"]}
+}
